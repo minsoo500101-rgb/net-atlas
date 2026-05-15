@@ -849,7 +849,8 @@ const path = d3.geoPath(projection);
 // Layers (back → front)
 const gSphere    = svg.append('g');
 const gGraticule = svg.append('g');
-const gMap       = svg.append('g');
+const gMap       = svg.append('g').attr('shape-rendering', 'geometricPrecision');
+const gNight     = svg.append('g').attr('class', 'night-layer');
 const gCables    = svg.append('g').attr('class', 'cables-layer');
 const gSun       = svg.append('g').attr('class', 'sun-layer');
 const gArcs      = svg.append('g');
@@ -857,10 +858,25 @@ const gPackets   = svg.append('g').attr('class', 'packets-layer');
 const gDots      = svg.append('g');
 const gLabels    = svg.append('g');
 
-// Globe background (the sphere itself)
+// Globe background — radial gradient for depth (ocean lighter in center, darker at edges)
+const oceanGrad = svg.insert('defs', ':first-child');
+const grad = oceanGrad.append('radialGradient')
+  .attr('id', 'ocean-grad').attr('cx', '50%').attr('cy', '50%').attr('r', '65%');
+grad.append('stop').attr('offset', '0%').attr('stop-color', '#0c1832');
+grad.append('stop').attr('offset', '60%').attr('stop-color', '#091224');
+grad.append('stop').attr('offset', '100%').attr('stop-color', '#050a15');
+// land filter — subtle inset shadow for depth
+const landFilter = oceanGrad.append('filter')
+  .attr('id', 'land-shadow').attr('x', '-5%').attr('y', '-5%').attr('width', '110%').attr('height', '110%');
+landFilter.append('feGaussianBlur').attr('in', 'SourceAlpha').attr('stdDeviation', '0.6').attr('result', 'blur');
+landFilter.append('feOffset').attr('in', 'blur').attr('dx', '0').attr('dy', '0.5').attr('result', 'off');
+const merge = landFilter.append('feMerge');
+merge.append('feMergeNode').attr('in', 'off');
+merge.append('feMergeNode').attr('in', 'SourceGraphic');
+
 gSphere.append('path').datum({ type: 'Sphere' })
   .attr('d', path)
-  .attr('fill', '#091122')
+  .attr('fill', 'url(#ocean-grad)')
   .attr('stroke', '#1a2238')
   .attr('stroke-width', 0.5);
 
@@ -872,16 +888,18 @@ gGraticule.append('path').datum(graticule())
   .attr('stroke', '#0f1626')
   .attr('stroke-width', 0.5);
 
-// Load countries
+// Load countries — 50m gives ~5x more detail than 110m
 (async () => {
   try {
-    const world = await origFetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(r => r.json());
+    const world = await origFetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json').then(r => r.json());
     const countries = topojson.feature(world, world.objects.countries).features;
     gMap.selectAll('path').data(countries).join('path')
       .attr('d', path)
-      .attr('fill', '#131a2e')
-      .attr('stroke', '#233052')
-      .attr('stroke-width', 0.4)
+      .attr('fill', '#15203a')
+      .attr('stroke', '#2a3a60')
+      .attr('stroke-width', 0.45)
+      .attr('vector-effect', 'non-scaling-stroke')
+      .style('filter', 'url(#land-shadow)')
       .attr('class', 'country-clickable')
       .on('click', (event, d) => {
         event.stopPropagation();
@@ -1782,7 +1800,34 @@ function placeSun() {
 function startSun() {
   if (sunInterval) return;
   placeSun();
-  sunInterval = setInterval(placeSun, 5000);
+  drawNightTerminator();
+  sunInterval = setInterval(() => { placeSun(); drawNightTerminator(); }, 5000);
+}
+
+// Day/night terminator — draws the unilluminated hemisphere as a dim overlay
+let nightOverlay = null;
+function drawNightTerminator() {
+  // Antisolar point = where it's local midnight
+  const d = new Date();
+  const N = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
+  const decl = 23.44 * Math.sin((2 * Math.PI / 365) * (N - 81));
+  const hour = d.getUTCHours() + d.getUTCMinutes()/60 + d.getUTCSeconds()/3600;
+  const B = 2 * Math.PI * (N - 81) / 365;
+  const eot = 9.87 * Math.sin(2*B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+  let sunLon = -15 * (hour - 12) - eot * 0.25;
+  sunLon = ((sunLon + 180) % 360 + 360) % 360 - 180;
+  const antiLat = -decl;
+  let antiLon = sunLon + 180; if (antiLon > 180) antiLon -= 360;
+  // d3 great circle of radius 90° around antisolar = night hemisphere
+  const nightCircle = d3.geoCircle().center([antiLon, antiLat]).radius(90)();
+  const pathStr = path(nightCircle);
+  if (!pathStr) return;
+  if (!nightOverlay) {
+    nightOverlay = gNight.append('path')
+      .attr('fill', 'rgba(0,0,15,0.32)')
+      .attr('pointer-events', 'none');
+  }
+  nightOverlay.attr('d', pathStr);
 }
 
 // --- Stream toggle UI ---
@@ -2202,6 +2247,7 @@ streamHandlers.gdacs = { start: startGdacs, stop: stopGdacs };
 function stopSun() {
   if (sunInterval) { clearInterval(sunInterval); sunInterval = null; }
   if (sunMarker) { sunMarker.remove(); sunMarker = null; }
+  if (nightOverlay) { nightOverlay.remove(); nightOverlay = null; }
 }
 streamHandlers.sun = { start: startSun, stop: stopSun };
 
