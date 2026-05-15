@@ -351,15 +351,34 @@ const KNOWN_HOSTS = {
   'iol.co.za':          { lat: -33.92, lon: 18.42,  city: 'Cape Town',       country: 'South Africa' },
 };
 
-async function lookupHost(host) {
-  // 1) Pre-baked lookup — instant, no network, no quota burn, no 403
-  if (KNOWN_HOSTS[host]) return KNOWN_HOSTS[host];
-  // 2) Fallback for arbitrary user-typed hosts
-  const r = await origFetch(`https://ipwho.is/${encodeURIComponent(host)}`);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+// DNS-over-HTTPS (Cloudflare) — resolves hostname → IP from the browser
+async function resolveHostToIP(host) {
+  const r = await origFetch(
+    `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=A`,
+    { headers: { Accept: 'application/dns-json' } }
+  );
+  if (!r.ok) throw new Error(`DoH HTTP ${r.status}`);
   const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'lookup failed');
-  return { lon: j.longitude, lat: j.latitude, country: j.country, city: j.city };
+  const ans = (j.Answer || []).find(a => a.type === 1);
+  if (!ans) throw new Error('no A record');
+  return ans.data;
+}
+
+// IP → coords via ipapi.co (ipwho.is started returning 403 for everything)
+async function ipToCoords(ip) {
+  const r = await origFetch(`https://ipapi.co/${ip}/json/`);
+  if (!r.ok) throw new Error(`ipapi HTTP ${r.status}`);
+  const j = await r.json();
+  if (j.error || j.latitude == null) throw new Error(j.reason || 'ipapi no geo');
+  return { lat: j.latitude, lon: j.longitude, city: j.city, country: j.country_name || j.country };
+}
+
+async function lookupHost(host) {
+  // 1) Pre-baked lookup — instant, no network, no quota burn
+  if (KNOWN_HOSTS[host]) return KNOWN_HOSTS[host];
+  // 2) DoH + ipapi for arbitrary user-typed hosts
+  const ip = await resolveHostToIP(host);
+  return await ipToCoords(ip);
 }
 
 async function plotHost(host) {
@@ -393,19 +412,22 @@ async function plotHost(host) {
 
 async function initYou() {
   try {
-    const r = await origFetch('https://ipwho.is/');
+    const r = await origFetch('https://ipapi.co/json/');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json();
-    if (!j.success) throw new Error('failed');
+    if (j.latitude == null) throw new Error('no geo');
+    const city = j.city || '';
+    const country = j.country_name || j.country || '';
     youCoords = [j.longitude, j.latitude];
-    drawDot(youCoords, 'you', `${j.city || ''} (나)`);
-    $('you').textContent = `→ ${j.city || '?'}, ${j.country || '?'} (나)`;
-  } catch {
+    drawDot(youCoords, 'you', `${city} (나)`);
+    $('you').textContent = `→ ${city || '?'}, ${country || '?'} (나)`;
+  } catch (e) {
     $('you').textContent = '→ 위치 확인 실패';
   }
 }
 
 // Auto-plot every cross-origin fetch this page makes
-const skipHosts = new Set(['ipwho.is', 'cdn.jsdelivr.net']);
+const skipHosts = new Set(['ipwho.is', 'ipapi.co', 'cloudflare-dns.com', 'cdn.jsdelivr.net']);
 window.fetch = function (input, init) {
   try {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
