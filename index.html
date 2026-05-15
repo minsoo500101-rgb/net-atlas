@@ -38,7 +38,6 @@
   }
   @keyframes blip { 0%,100% {opacity:1;} 50% {opacity:0.3;} }
   .header .sub { font-size: 10px; color: var(--dim); letter-spacing: 1px; }
-  .header .you { font-size: 11px; color: var(--you); margin-top: 10px; letter-spacing: 1px; }
 
   .stats {
     position: absolute; top: 16px; right: 20px; z-index: 10;
@@ -290,48 +289,40 @@
   }
   .rp-sub {
     font-size: 11px; color: var(--dim); letter-spacing: 1px;
-    margin-bottom: 10px;
-  }
-  .rp-volume {
-    display: grid; grid-template-columns: 22px 1fr 36px;
-    align-items: center; gap: 8px;
-    padding: 8px 4px; margin-bottom: 12px;
+    margin-bottom: 12px; padding-bottom: 10px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
   }
-  .rp-vol-icon { font-size: 14px; cursor: pointer; text-align: center; user-select: none; }
-  #rp-vol {
-    -webkit-appearance: none; appearance: none;
-    width: 100%; height: 4px; background: var(--land-stroke);
-    border-radius: 2px; outline: none; cursor: pointer;
+  .rp-thumb {
+    width: 100%; max-height: 160px; object-fit: cover;
+    border-radius: 4px; margin-bottom: 10px;
+    background: var(--panel-2);
   }
-  #rp-vol::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 14px; height: 14px; border-radius: 50%;
-    background: var(--accent); cursor: pointer;
-    box-shadow: 0 0 6px rgba(124,243,195,0.6);
+  .rp-desc {
+    font-size: 12px; color: var(--accent); letter-spacing: 0.5px;
+    margin-bottom: 10px;
   }
-  #rp-vol::-moz-range-thumb {
-    width: 14px; height: 14px; border-radius: 50%;
-    background: var(--accent); cursor: pointer; border: none;
-    box-shadow: 0 0 6px rgba(124,243,195,0.6);
+  .rp-extract {
+    font-size: 11px; color: var(--text); line-height: 1.6;
+    margin-bottom: 12px;
   }
-  #rp-vol-val { font-size: 10px; color: var(--dim); text-align: right; }
+  .rp-readmore {
+    display: inline-block; padding: 6px 12px;
+    border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 4px; text-decoration: none;
+    font-size: 10px; letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+  .rp-readmore:hover { background: rgba(124,243,195,0.1); }
+  .rp-attrib {
+    font-size: 9px; color: var(--dim); letter-spacing: 0.3px;
+    margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    text-align: center;
+  }
+  .rp-attrib a { color: var(--link); text-decoration: none; }
   .rp-content { flex: 1; overflow-y: auto; font-size: 11px; }
-  .rp-station {
-    display: grid; grid-template-columns: 1fr auto; gap: 8px;
-    padding: 8px 10px; border: 1px solid var(--land-stroke);
-    border-radius: 4px; margin-bottom: 5px;
-    cursor: pointer; align-items: center;
-    transition: border-color 0.15s;
-  }
-  .rp-station:hover { border-color: var(--accent); }
-  .rp-station.playing { border-color: var(--accent); background: rgba(124,243,195,0.08); }
-  .rp-st-name { color: var(--text); font-size: 11px; margin-bottom: 2px; word-break: break-word; }
-  .rp-st-meta { color: var(--dim); font-size: 9px; letter-spacing: 0.5px; }
-  .rp-st-play { color: var(--accent); font-size: 13px; padding: 0 4px; }
-  #rp-player { display: none; }
 
-  .country-clickable { cursor: pointer; transition: fill 0.15s; }
+  .country-clickable { transition: fill 0.15s; }
   .country-clickable:hover { fill: #1f2a44; }
 
   /* ========== BOOT SEQUENCE ========== */
@@ -392,37 +383,29 @@
   }
   @keyframes chromatic { to { background-position: 300% 0%; } }
 
-  /* ========== CUSTOM CURSOR ========== */
-  body { cursor: none; }
-  input, textarea { cursor: text; }
-  .cursor, .cursor-dot { pointer-events: none; will-change: transform; }
+  /* ========== CUSTOM CURSOR (single ring, system cursor hidden) ========== */
+  *, *::before, *::after { cursor: none !important; }
+  input, textarea { cursor: text !important; }
+  .cursor { pointer-events: none; will-change: transform; }
   .cursor {
     position: fixed; left: 0; top: 0;
-    width: 26px; height: 26px;
-    border: 1px solid rgba(124,243,195,0.65);
+    width: 22px; height: 22px;
+    border: 1px solid rgba(124,243,195,0.55);
     border-radius: 50%;
-    z-index: 9997;
+    z-index: 9998;
     transform: translate(-50%, -50%);
-    transition: width 0.2s, height 0.2s, border-color 0.2s, background 0.2s;
+    transition: width 0.18s, height 0.18s, border-color 0.18s, background 0.18s;
     mix-blend-mode: screen;
   }
   .cursor::before, .cursor::after {
-    content: ''; position: absolute;
-    background: var(--accent);
+    content: ''; position: absolute; background: var(--accent);
   }
-  .cursor::before { left: 50%; top: -5px; width: 1px; height: 9px; transform: translateX(-50%); }
-  .cursor::after  { top: 50%; left: -5px; height: 1px; width: 9px; transform: translateY(-50%); }
+  .cursor::before { left: 50%; top: -5px; width: 1px; height: 8px; transform: translateX(-50%); }
+  .cursor::after  { top: 50%; left: -5px; height: 1px; width: 8px; transform: translateY(-50%); }
   .cursor.hover {
-    width: 44px; height: 44px;
+    width: 40px; height: 40px;
     border-color: var(--accent);
-    background: rgba(124,243,195,0.05);
-  }
-  .cursor-dot {
-    position: fixed; left: 0; top: 0;
-    width: 5px; height: 5px; border-radius: 50%;
-    background: var(--accent);
-    z-index: 9998; transform: translate(-50%, -50%);
-    box-shadow: 0 0 12px var(--accent);
+    background: rgba(124,243,195,0.06);
   }
 
   /* ========== HUD CORNER BRACKETS ========== */
@@ -537,7 +520,6 @@
   </div>
 </div>
 <div class="cursor" id="cursor"></div>
-<div class="cursor-dot" id="cursor-dot"></div>
 <div class="hud-bracket tl"></div>
 <div class="hud-bracket tr"></div>
 <div class="hud-bracket bl"></div>
@@ -564,27 +546,22 @@
 <aside class="region-panel" id="region-panel">
   <button class="rp-close" id="rp-close" title="close">×</button>
   <h3 id="rp-name">—</h3>
-  <div class="rp-sub">📻 Radio</div>
-  <div class="rp-volume">
-    <span class="rp-vol-icon" id="rp-vol-icon">🔊</span>
-    <input type="range" id="rp-vol" min="0" max="100" value="75">
-    <span id="rp-vol-val">75%</span>
-  </div>
+  <div class="rp-sub">📖 Wikipedia summary</div>
   <div class="rp-content" id="rp-content"></div>
+  <div class="rp-attrib">
+    Content from <a id="rp-wiki-link" href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia</a> · CC BY-SA 4.0
+  </div>
 </aside>
-<audio id="rp-player" autoplay></audio>
 
 <div class="header">
   <h1>NET ATLAS</h1>
   <div class="sub">실시간으로 흐르는 인터넷</div>
-  <div class="you" id="you">→ 위치 확인 중…</div>
   <div class="header-btns">
     <button class="layers-btn" id="layers-btn">⚙ Layers</button>
     <button class="layers-btn" id="news-btn">📰 News</button>
   </div>
   <div class="ticker" id="ticker">
     <span><b id="t-wiki">0</b>편집/분</span>
-    <span><b id="t-bsky">0</b>포스트/분</span>
     <span><b id="t-eonet">0</b>재해</span>
     <span><b id="t-iss">—</b></span>
     <span class="speed-btn" id="speed-btn" title="time multiplier">60×</span>
@@ -600,10 +577,8 @@
 <div class="log" id="log"></div>
 
 <div class="legend">
-  <span class="y"></span>나
   <span class="t"></span>호스트
   <span class="w"></span>위키
-  <span class="m"></span>블루스카이
   <span class="e"></span>지진
   <span class="n"></span>재해
   <span class="i"></span>위성
@@ -645,7 +620,7 @@
   const lines = [
     '> initializing system core ............... <span class="ok">OK</span>',
     '> handshake stream.wikimedia.org .......... <span class="ok">OK</span>',
-    '> handshake jetstream2.bsky.network ....... <span class="ok">OK</span>',
+    '> handshake earthquake.usgs.gov .......... <span class="ok">OK</span>',
     '> loading 34 submarine cables ............. <span class="ok">OK</span>',
     '> propagating 6 satellite TLEs ............ <span class="ok">OK</span>',
     '> computing subsolar geometry ............. <span class="ok">OK</span>',
@@ -660,35 +635,27 @@
       i++;
       setTimeout(step, 130);
     } else {
-      setTimeout(() => boot.classList.add('done'), 600);
+      setTimeout(() => {
+        boot.classList.add('done');
+        // Remove from DOM after fade for cleaner tree
+        setTimeout(() => boot.remove(), 800);
+      }, 600);
     }
   }
   step();
 })();
 
-// Custom cursor — outer ring + trailing dot
+// Custom cursor — single ring
 (function runCursor() {
   const c = document.getElementById('cursor');
-  const dot = document.getElementById('cursor-dot');
-  if (!c || !dot) return;
-  let mx = window.innerWidth / 2, my = window.innerHeight / 2;
-  let dx = mx, dy = my;
+  if (!c) return;
   document.addEventListener('mousemove', e => {
-    mx = e.clientX; my = e.clientY;
-    c.style.transform = `translate(${mx}px, ${my}px)`;
-  });
-  function follow() {
-    dx += (mx - dx) * 0.22;
-    dy += (my - dy) * 0.22;
-    dot.style.transform = `translate(${dx}px, ${dy}px)`;
-    requestAnimationFrame(follow);
-  }
-  follow();
-  // Hover state on interactive elements
+    c.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+  }, { passive: true });
   document.addEventListener('mouseover', e => {
-    const hit = e.target.closest('button, a, .country-clickable, .rp-station, .news-card, .lp-toggle, .speed-btn, input, [data-stream], .stream-toggle');
+    const hit = e.target.closest('button, a, .country-clickable, .news-card, .lp-toggle, .speed-btn, input, [data-stream]');
     c.classList.toggle('hover', !!hit);
-  });
+  }, { passive: true });
 })();
 
 // Click ripple
@@ -701,25 +668,25 @@ document.addEventListener('click', e => {
   setTimeout(() => r.remove(), 700);
 });
 
-// Text scramble — cinematic reveal for dynamic text
+// Text scramble — cinematic reveal for dynamic text.
+// Uses setTimeout (works in any tab state).
 function scrambleText(el, finalText, duration = 500) {
   if (!el) return;
   const chars = '!<>-_/[]{}=+*^?#01';
   const final = String(finalText || '');
-  const start = performance.now();
-  function frame(now) {
-    const t = Math.min(1, (now - start) / duration);
+  const start = Date.now();
+  function step() {
+    const t = Math.min(1, (Date.now() - start) / duration);
     let out = '';
     for (let i = 0; i < final.length; i++) {
-      const ready = i / final.length <= t;
-      out += ready ? final[i] : chars[(Math.random() * chars.length) | 0];
+      out += i / final.length <= t ? final[i] : chars[(Math.random() * chars.length) | 0];
     }
     el.textContent = out;
-    if (t < 1) requestAnimationFrame(frame);
+    if (t < 1) setTimeout(step, 32);
     else el.textContent = final;
   }
   el.classList.add('scramble-text');
-  requestAnimationFrame(frame);
+  step();
 }
 
 // ============================================================
@@ -1316,34 +1283,10 @@ const KNOWN_HOSTS = {
   'iol.co.za':          { lat: -33.92, lon: 18.42,  city: 'Cape Town',       country: 'South Africa' },
 };
 
-// DNS-over-HTTPS (Cloudflare) — resolves hostname → IP from the browser
-async function resolveHostToIP(host) {
-  const r = await origFetch(
-    `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=A`,
-    { headers: { Accept: 'application/dns-json' } }
-  );
-  if (!r.ok) throw new Error(`DoH HTTP ${r.status}`);
-  const j = await r.json();
-  const ans = (j.Answer || []).find(a => a.type === 1);
-  if (!ans) throw new Error('no A record');
-  return ans.data;
-}
-
-// IP → coords via ipapi.co (ipwho.is started returning 403 for everything)
-async function ipToCoords(ip) {
-  const r = await origFetch(`https://ipapi.co/${ip}/json/`);
-  if (!r.ok) throw new Error(`ipapi HTTP ${r.status}`);
-  const j = await r.json();
-  if (j.error || j.latitude == null) throw new Error(j.reason || 'ipapi no geo');
-  return { lat: j.latitude, lon: j.longitude, city: j.city, country: j.country_name || j.country };
-}
-
 async function lookupHost(host) {
-  // 1) Pre-baked lookup — instant, no network, no quota burn
+  // Pre-baked lookup only — no third-party geo-IP APIs (commercial readiness).
   if (KNOWN_HOSTS[host]) return KNOWN_HOSTS[host];
-  // 2) DoH + ipapi for arbitrary user-typed hosts
-  const ip = await resolveHostToIP(host);
-  return await ipToCoords(ip);
+  throw new Error('unknown host');
 }
 
 async function plotHost(host) {
@@ -1375,24 +1318,12 @@ async function plotHost(host) {
   }
 }
 
-async function initYou() {
-  try {
-    const r = await origFetch('https://ipapi.co/json/');
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const j = await r.json();
-    if (j.latitude == null) throw new Error('no geo');
-    const city = j.city || '';
-    const country = j.country_name || j.country || '';
-    youCoords = [j.longitude, j.latitude];
-    drawDot(youCoords, 'you', `${city} (나)`);
-    $('you').textContent = `→ ${city || '?'}, ${country || '?'} (나)`;
-  } catch (e) {
-    $('you').textContent = '→ 위치 확인 실패';
-  }
-}
+// Self-location feature removed for commercial readiness (third-party geo-IP APIs
+// have non-commercial free tiers). Map starts neutral.
+function initYou() {}
 
 // Auto-plot every cross-origin fetch this page makes
-const skipHosts = new Set(['ipwho.is', 'ipapi.co', 'cloudflare-dns.com', 'cdn.jsdelivr.net']);
+const skipHosts = new Set(['cloudflare-dns.com', 'cdn.jsdelivr.net']);
 window.fetch = function (input, init) {
   try {
     if (typeof hostFetchOn === 'undefined' || hostFetchOn) {
@@ -1541,20 +1472,19 @@ function wikiLocationFor(wiki) {
 
 // --- Streams state ---
 let wikiES = null, wikiCount = 0, wikiQueue = [];
-let bskyWS = null, bskyCount = 0, bskyQueue = [];
 let eqTimer = null, eqCount = 0, eqDots = new Map();
 let eonetTimer = null, eonetCount = 0, eonetDots = new Map();
 let satsTimer = null, satMarkers = new Map(), satTrails = new Map();
 
 const streamSkip = new Set([
-  'stream.wikimedia.org', 'jetstream2.us-east.bsky.network', 'earthquake.usgs.gov',
+  'stream.wikimedia.org', 'earthquake.usgs.gov',
   'eonet.gsfc.nasa.gov', 'celestrak.org', 'tle.ivanstanojevic.me',
-  'api.gdeltproject.org', 'hacker-news.firebaseio.com',
+  'hacker-news.firebaseio.com', 'en.wikipedia.org',
 ]);
 streamSkip.forEach(h => skipHosts.add(h));
 
 // Per-minute rate tracking
-const rateBuckets = { wiki: [], bsky: [] };
+const rateBuckets = { wiki: [] };
 function tickRate(kind) {
   const now = Date.now();
   rateBuckets[kind].push(now);
@@ -1562,7 +1492,6 @@ function tickRate(kind) {
 }
 setInterval(() => {
   $('t-wiki').textContent = rateBuckets.wiki.length;
-  $('t-bsky').textContent = rateBuckets.bsky.length;
   $('t-eonet').textContent = eonetDots.size;
 }, 1000);
 
@@ -1605,45 +1534,6 @@ setInterval(() => {
     logEntry(d.wiki, lang.toUpperCase() + ' · ' + (d.title || '').slice(0,40), 'wiki');
   }
 }, 120);
-
-// --- Bluesky Jetstream (public WebSocket, no auth) ---
-function startBsky() {
-  if (bskyWS) return;
-  try {
-    bskyWS = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post');
-    bskyWS.onmessage = (msg) => {
-      try {
-        const d = JSON.parse(msg.data);
-        if (d.kind !== 'commit') return;
-        const rec = d.commit?.record;
-        if (!rec || rec.$type !== 'app.bsky.feed.post') return;
-        bskyQueue.push(rec);
-        if (bskyQueue.length > 100) bskyQueue.shift();
-      } catch {}
-    };
-    bskyWS.onclose = () => { bskyWS = null; };
-    bskyWS.onerror = () => {};
-  } catch (e) { console.error('bsky', e); }
-}
-function stopBsky() {
-  if (bskyWS) { bskyWS.close(); bskyWS = null; }
-}
-setInterval(() => {
-  if (!bskyWS || bskyQueue.length === 0) return;
-  const rec = bskyQueue.shift();
-  const lang = (rec.langs && rec.langs[0]) || 'en'; // default to en pool
-  const loc = locationForLang(lang);
-  if (!loc) return;
-  const [lat, lon] = loc;
-  const projected = projection([lon, lat]);
-  if (!projected) return;
-  bskyCount++; tickRate('bsky');
-  if (bskyCount % 5 === 0) updateLayerCount('bsky', bskyCount);
-  spawnPulse(projected[0], projected[1], '#5ec4ff', 10);
-  if (bskyCount % 8 === 0) {
-    logEntry('bsky', lang.toUpperCase() + ' · ' + (rec.text || '').slice(0, 50), 'bsky');
-  }
-}, 150);
 
 // --- NASA EONET: open natural events (wildfires, volcanoes, storms, floods) ---
 const EONET_CATEGORY = {
@@ -1734,28 +1624,30 @@ const SATELLITES = [
 ];
 const satRecs = new Map(); // norad -> satellite.satrec
 async function loadTLE(sat) {
-  // Primary: tle.ivanstanojevic.me (CORS-friendly JSON API)
+  // Primary: CelesTrak (official NORAD data, free for any use w/ attribution)
+  try {
+    const r = await origFetch(`https://celestrak.org/NORAD/elements/gp.php?CATNR=${sat.id}&FORMAT=tle`);
+    if (r.ok) {
+      const txt = (await r.text()).trim();
+      const lines = txt.split('\n').map(l => l.trim()).filter(Boolean);
+      let l1, l2;
+      if (lines.length >= 3) { l1 = lines[1]; l2 = lines[2]; }
+      else if (lines.length === 2) { l1 = lines[0]; l2 = lines[1]; }
+      if (l1 && l2) {
+        satRecs.set(sat.id, satellite.twoline2satrec(l1, l2));
+        return;
+      }
+    }
+  } catch {}
+  // Fallback: tle.ivanstanojevic.me (community mirror, JSON)
   try {
     const r = await origFetch(`https://tle.ivanstanojevic.me/api/tle/${sat.id}`);
     if (r.ok) {
       const j = await r.json();
       if (j.line1 && j.line2) {
         satRecs.set(sat.id, satellite.twoline2satrec(j.line1, j.line2));
-        return;
       }
     }
-  } catch {}
-  // Fallback: CelesTrak (may rate-limit)
-  try {
-    const r = await origFetch(`https://celestrak.org/NORAD/elements/gp.php?CATNR=${sat.id}&FORMAT=tle`);
-    if (!r.ok) return;
-    const txt = (await r.text()).trim();
-    const lines = txt.split('\n').map(l => l.trim()).filter(Boolean);
-    let l1, l2;
-    if (lines.length >= 3) { l1 = lines[1]; l2 = lines[2]; }
-    else if (lines.length === 2) { l1 = lines[0]; l2 = lines[1]; }
-    else return;
-    satRecs.set(sat.id, satellite.twoline2satrec(l1, l2));
   } catch {}
 }
 function propagateSatAt(satrec, date) {
@@ -1798,10 +1690,9 @@ let issTickerLast = 0;
 const lastTrailWall = new Map();
 
 async function satLoop() {
-  // Load TLEs lazily once
-  for (const sat of SATELLITES) {
-    if (!satRecs.has(sat.id)) await loadTLE(sat);
-  }
+  // Load TLEs lazily once — parallel for fast cold-start
+  const pending = SATELLITES.filter(s => !satRecs.has(s.id));
+  if (pending.length) await Promise.all(pending.map(loadTLE));
   const tick = () => {
     if (!satTickHandle) return;
     const simNow = currentSimTime();
@@ -1863,7 +1754,7 @@ function placeSat(sat, pos) {
     lastTrailWall.set(sat.id, wallNow);
     const trail = satTrails.get(sat.id);
     trail.push([x, y]);
-    if (trail.length > 220) trail.shift();
+    if (trail.length > 80) trail.shift();
     let trailPath = gDots.select(`path.sat-trail-${sat.id}`);
     if (trailPath.empty()) {
       trailPath = gDots.insert('path', '.sat-group').attr('class', `sat-trail-${sat.id}`)
@@ -2094,7 +1985,6 @@ function drawNightTerminator() {
 // --- Stream toggle UI ---
 const streamHandlers = {
   wiki:   { start: startWiki,   stop: stopWiki   },
-  bsky:   { start: startBsky,   stop: stopBsky   },
   eq:     { start: startEq,     stop: stopEq     },
   eonet:  { start: startEonet,  stop: stopEonet  },
   sats:   { start: startSats,   stop: stopSats   },
@@ -2192,78 +2082,38 @@ const ISO_N2A = {
   '862':'VE','882':'WS','887':'YE','894':'ZM',
 };
 
-const rpPlayer = $('rp-player');
-let currentStationUrl = null;
-
-async function loadStations(countryName, isoCode) {
-  // Prefer ISO alpha-2 lookup — radio-browser's country names don't always match world-atlas
-  if (isoCode) {
-    try {
-      const r = await origFetch(`https://all.api.radio-browser.info/json/stations/bycountrycodeexact/${isoCode}?limit=30&order=clickcount&reverse=true&hidebroken=true`);
-      if (r.ok) {
-        const j = await r.json();
-        if (j.length) return j;
-      }
-    } catch {}
-  }
-  // Fallback: name-based search
+// ---- Region panel: Wikipedia country summary (CC BY-SA 4.0) ----
+async function loadCountrySummary(countryName) {
   try {
-    const r = await origFetch(`https://all.api.radio-browser.info/json/stations/search?country=${encodeURIComponent(countryName)}&limit=30&order=clickcount&reverse=true&hidebroken=true`);
-    if (!r.ok) return [];
+    const r = await origFetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(countryName.replace(/\s+/g, '_'))}`);
+    if (!r.ok) return null;
     return await r.json();
-  } catch { return []; }
+  } catch { return null; }
 }
-function renderStations(stations) {
+function renderCountry(summary, countryName) {
   const wrap = $('rp-content');
-  if (!stations || stations.length === 0) {
-    wrap.innerHTML = '<div style="color:var(--dim);padding:14px 4px">방송국을 찾지 못했습니다 / No stations found</div>';
+  const link = $('rp-wiki-link');
+  if (!summary || summary.type === 'disambiguation') {
+    const fallback = `https://en.wikipedia.org/wiki/${encodeURIComponent(countryName.replace(/\s+/g, '_'))}`;
+    link.href = fallback;
+    wrap.innerHTML = `<div style="color:var(--dim);padding:14px 4px">위키 페이지를 찾지 못했습니다.<br><a href="${fallback}" target="_blank" rel="noopener" style="color:var(--accent)">Search on Wikipedia →</a></div>`;
     return;
   }
-  const seen = new Set();
-  const unique = stations.filter(s => {
-    const k = (s.name||'').trim().toLowerCase();
-    if (!k || seen.has(k)) return false;
-    seen.add(k); return true;
-  });
-  wrap.innerHTML = unique.slice(0, 22).map(s => `
-    <div class="rp-station" data-url="${(s.url_resolved || s.url || '').replace(/"/g,'')}">
-      <div>
-        <div class="rp-st-name">${(s.name||'').replace(/[<>]/g,'').slice(0,42)}</div>
-        <div class="rp-st-meta">${(s.tags||'').slice(0,32) || (s.language||'') || ''}${s.bitrate ? ' · '+s.bitrate+'kbps' : ''}</div>
-      </div>
-      <div class="rp-st-play">▶</div>
-    </div>
-  `).join('');
-  wrap.querySelectorAll('.rp-station').forEach((el, i) => {
-    el.addEventListener('click', () => playStation(el.dataset.url, el));
-    const nameEl = el.querySelector('.rp-st-name');
-    if (nameEl) {
-      const final = nameEl.textContent;
-      setTimeout(() => scrambleText(nameEl, final, 350 + i * 20), i * 30);
-    }
-  });
-}
-function playStation(url, el) {
-  if (!url) return;
-  if (currentStationUrl === url) {
-    rpPlayer.pause(); currentStationUrl = null;
-    el.classList.remove('playing');
-    el.querySelector('.rp-st-play').textContent = '▶';
-    return;
-  }
-  $('rp-content').querySelectorAll('.rp-station').forEach(s => {
-    s.classList.remove('playing');
-    s.querySelector('.rp-st-play').textContent = '▶';
-  });
-  rpPlayer.src = url;
-  rpPlayer.play().catch(() => {
-    // common failure: mixed content (HTTP stream on HTTPS page) or CORS audio
-    el.querySelector('.rp-st-play').textContent = '⚠';
-    setTimeout(() => { el.querySelector('.rp-st-play').textContent = '▶'; }, 1500);
-  });
-  el.classList.add('playing');
-  el.querySelector('.rp-st-play').textContent = '⏸';
-  currentStationUrl = url;
+  const url = summary.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(summary.titles?.canonical || countryName)}`;
+  link.href = url;
+  const thumb = summary.thumbnail?.source
+    ? `<img class="rp-thumb" src="${summary.thumbnail.source}" loading="lazy" onerror="this.style.display='none'">`
+    : '';
+  const desc = summary.description ? `<div class="rp-desc">${summary.description}</div>` : '';
+  const extract = (summary.extract || '').replace(/[<>]/g, '');
+  wrap.innerHTML = `
+    ${thumb}
+    ${desc}
+    <div class="rp-extract">${extract}</div>
+    <a class="rp-readmore" href="${url}" target="_blank" rel="noopener">Read full article on Wikipedia →</a>
+  `;
+  const titleEl = wrap.querySelector('.rp-desc');
+  if (titleEl) scrambleText(titleEl, titleEl.textContent, 300);
 }
 async function openRegionPanel(countryName, isoCode) {
   const panel = $('region-panel');
@@ -2271,43 +2121,14 @@ async function openRegionPanel(countryName, isoCode) {
   panel.dataset.iso = isoCode || '';
   panel.classList.add('show');
   $('rp-content').innerHTML = '<div style="color:var(--dim);padding:14px 4px">로딩…</div>';
-  const stations = await loadStations(countryName, isoCode);
-  renderStations(stations);
+  const summary = await loadCountrySummary(countryName);
+  renderCountry(summary, countryName);
 }
 function closeRegionPanel() {
   $('region-panel').classList.remove('show');
-  rpPlayer.pause(); currentStationUrl = null;
   zoomReset();
 }
 $('rp-close').addEventListener('click', closeRegionPanel);
-
-// --- Volume control (persisted in localStorage) ---
-const VOL_KEY = 'netatlas:radio-volume';
-const savedVol = parseInt(localStorage.getItem(VOL_KEY) || '75', 10);
-rpPlayer.volume = Math.max(0, Math.min(1, savedVol / 100));
-$('rp-vol').value = savedVol;
-$('rp-vol-val').textContent = savedVol + '%';
-let lastVol = savedVol > 0 ? savedVol : 75;
-function applyVol(v, save = true) {
-  const clamped = Math.max(0, Math.min(100, v));
-  rpPlayer.volume = clamped / 100;
-  $('rp-vol').value = clamped;
-  $('rp-vol-val').textContent = clamped + '%';
-  $('rp-vol-icon').textContent = clamped === 0 ? '🔇' : clamped < 33 ? '🔈' : clamped < 66 ? '🔉' : '🔊';
-  if (save) localStorage.setItem(VOL_KEY, String(clamped));
-}
-applyVol(savedVol, false);
-$('rp-vol').addEventListener('input', e => {
-  const v = +e.target.value;
-  if (v > 0) lastVol = v;
-  applyVol(v);
-});
-// Click speaker icon → mute toggle
-$('rp-vol-icon').addEventListener('click', () => {
-  const cur = +$('rp-vol').value;
-  if (cur > 0) { lastVol = cur; applyVol(0); }
-  else applyVol(lastVol || 75);
-});
 
 // ============================================================
 // SUBMARINE CABLES — curated list of major intercontinental routes
@@ -2537,22 +2358,29 @@ setInterval(() => {
   // and trim very old ones if necessary. d3 transitions auto-clean,
   // but if a tab is throttled, transitions may stall.
   const transientPulse = gDots.selectAll('circle[fill="none"]').nodes();
-  if (transientPulse.length > 180) {
-    for (let i = 0; i < transientPulse.length - 120; i++) transientPulse[i].remove();
+  if (transientPulse.length > 120) {
+    for (let i = 0; i < transientPulse.length - 80; i++) transientPulse[i].remove();
   }
   const pkts = gPackets.node().children;
-  if (pkts.length > 160) {
-    for (let i = 0; i < pkts.length - 100; i++) pkts[0].remove();
+  if (pkts.length > 120) {
+    for (let i = 0; i < pkts.length - 80; i++) pkts[0].remove();
   }
-}, 3000);
+}, 2500);
+// Pause-aware: when tab hidden, browsers throttle setInterval to 1Hz automatically.
+// On return, trigger a one-shot prune so the user doesn't see backed-up DOM.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    gPackets.selectAll('*').remove();
+    gDots.selectAll('circle[fill="none"]').remove();
+  }
+});
 
 // ============================================================
 // LAYER REGISTRY — single source of truth, drives layers panel
 // ============================================================
 const LAYER_DEFS = [
-  { key:'wiki',    name:'Wikipedia 편집',        meta:'stream.wikimedia.org · 실시간 SSE',                                color:'#b682ff', default:true  },
-  { key:'bsky',    name:'Bluesky 포스트',        meta:'jetstream2.us-east.bsky.network · WebSocket firehose',             color:'#5ec4ff', default:true  },
-  { key:'eq',      name:'지진 (USGS)',           meta:'earthquake.usgs.gov · 1시간 이내 모든 지진',                       color:'#ff7a5c', default:false },
+  { key:'wiki',    name:'Wikipedia 편집',        meta:'stream.wikimedia.org · 실시간 SSE · CC BY-SA 4.0',                 color:'#b682ff', default:true  },
+  { key:'eq',      name:'지진 (USGS)',           meta:'earthquake.usgs.gov · 1시간 이내 모든 지진 · public domain',       color:'#ff7a5c', default:false },
   { key:'eonet',   name:'자연재해 (NASA EONET)', meta:'eonet.gsfc.nasa.gov · 활성 산불·화산·태풍·홍수',                  color:'#ff9966', default:false },
   { key:'gdacs',   name:'재난 경보 (GDACS)',     meta:'www.gdacs.org · UN 글로벌 재난 경보 (홍수/지진/태풍/화산/가뭄)',   color:'#ff5050', default:false },
   { key:'cables',  name:'해저 케이블',           meta:'TeleGeography 기반 큐레이션 · 주요 대륙간 인터넷 백본',            color:'#5ec4ff', default:true  },
@@ -2725,7 +2553,6 @@ document.querySelectorAll('.news-tab').forEach(t => {
 // Auto-start: layers whose LAYER_DEFS.default === true
 // (Disaster layers default OFF — user can enable via Layers panel)
 startWiki();
-startBsky();
 startCables();
 startSats();
 startPackets();
