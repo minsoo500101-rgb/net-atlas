@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Net Atlas — 통신한 지점들</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%8F%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #050810;
@@ -308,8 +309,54 @@ function drawDot([lon, lat], kind, host) {
   }
 }
 
+// Pre-baked coordinates for well-known hosts.
+// Avoids ipwho.is 403s on GitHub Pages and saves quota.
+// Coords roughly = primary editorial/HQ location (CDN-fronted sites don't have one real location).
+const KNOWN_HOSTS = {
+  'github.com':         { lat: 37.78, lon: -122.42, city: 'San Francisco',  country: 'United States' },
+  'wikipedia.org':      { lat: 37.78, lon: -122.40, city: 'San Francisco',  country: 'United States' },
+  'naver.com':          { lat: 37.36, lon: 127.10,  city: 'Seongnam',        country: 'South Korea' },
+  'kbs.co.kr':          { lat: 37.57, lon: 126.98,  city: 'Seoul',           country: 'South Korea' },
+  'chosun.com':         { lat: 37.57, lon: 126.98,  city: 'Seoul',           country: 'South Korea' },
+  'bbc.co.uk':          { lat: 51.51, lon: -0.13,   city: 'London',          country: 'United Kingdom' },
+  'reuters.com':        { lat: 51.51, lon: -0.13,   city: 'London',          country: 'United Kingdom' },
+  'independent.co.uk':  { lat: 51.51, lon: -0.13,   city: 'London',          country: 'United Kingdom' },
+  'nhk.or.jp':          { lat: 35.68, lon: 139.76,  city: 'Tokyo',           country: 'Japan' },
+  'sankei.com':         { lat: 35.68, lon: 139.76,  city: 'Tokyo',           country: 'Japan' },
+  'asahi.com':          { lat: 35.68, lon: 139.76,  city: 'Tokyo',           country: 'Japan' },
+  'lemonde.fr':         { lat: 48.86, lon: 2.35,    city: 'Paris',           country: 'France' },
+  'rfi.fr':             { lat: 48.86, lon: 2.35,    city: 'Paris',           country: 'France' },
+  'lefigaro.fr':        { lat: 48.86, lon: 2.35,    city: 'Paris',           country: 'France' },
+  'abc.net.au':         { lat: -33.87, lon: 151.21, city: 'Sydney',          country: 'Australia' },
+  'smh.com.au':         { lat: -33.87, lon: 151.21, city: 'Sydney',          country: 'Australia' },
+  'globo.com':          { lat: -22.91, lon: -43.20, city: 'Rio de Janeiro',  country: 'Brazil' },
+  'folha.uol.com.br':   { lat: -23.55, lon: -46.63, city: 'São Paulo',       country: 'Brazil' },
+  'taobao.com':         { lat: 30.27, lon: 120.16,  city: 'Hangzhou',        country: 'China' },
+  'people.com.cn':      { lat: 39.90, lon: 116.41,  city: 'Beijing',         country: 'China' },
+  'yandex.ru':          { lat: 55.75, lon: 37.62,   city: 'Moscow',          country: 'Russia' },
+  'aljazeera.com':      { lat: 25.29, lon: 51.53,   city: 'Doha',            country: 'Qatar' },
+  'elpais.com':         { lat: 40.42, lon: -3.70,   city: 'Madrid',          country: 'Spain' },
+  'elmundo.es':         { lat: 40.42, lon: -3.70,   city: 'Madrid',          country: 'Spain' },
+  'spiegel.de':         { lat: 53.55, lon: 9.99,    city: 'Hamburg',         country: 'Germany' },
+  'tagesschau.de':      { lat: 53.55, lon: 9.99,    city: 'Hamburg',         country: 'Germany' },
+  'dw.com':             { lat: 50.74, lon: 7.10,    city: 'Bonn',            country: 'Germany' },
+  'heise.de':           { lat: 52.37, lon: 9.74,    city: 'Hannover',        country: 'Germany' },
+  'timesofindia.com':   { lat: 19.08, lon: 72.88,   city: 'Mumbai',          country: 'India' },
+  'thehindu.com':       { lat: 13.08, lon: 80.27,   city: 'Chennai',         country: 'India' },
+  'dawn.com':           { lat: 24.86, lon: 67.01,   city: 'Karachi',         country: 'Pakistan' },
+  'cna.com.tw':         { lat: 25.04, lon: 121.56,  city: 'Taipei',          country: 'Taiwan' },
+  'straitstimes.com':   { lat: 1.35,  lon: 103.82,  city: 'Singapore',       country: 'Singapore' },
+  'clarin.com':         { lat: -34.60, lon: -58.38, city: 'Buenos Aires',    country: 'Argentina' },
+  'nzherald.co.nz':     { lat: -36.85, lon: 174.76, city: 'Auckland',        country: 'New Zealand' },
+  'iol.co.za':          { lat: -33.92, lon: 18.42,  city: 'Cape Town',       country: 'South Africa' },
+};
+
 async function lookupHost(host) {
+  // 1) Pre-baked lookup — instant, no network, no quota burn, no 403
+  if (KNOWN_HOSTS[host]) return KNOWN_HOSTS[host];
+  // 2) Fallback for arbitrary user-typed hosts
   const r = await origFetch(`https://ipwho.is/${encodeURIComponent(host)}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'lookup failed');
   return { lon: j.longitude, lat: j.latitude, country: j.country, city: j.city };
