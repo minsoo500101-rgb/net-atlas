@@ -235,19 +235,34 @@
     margin: 0 0 14px; font-size: 14px; color: var(--accent);
     letter-spacing: 1px; padding-right: 28px;
   }
-  .rp-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
-  .rp-tab {
-    background: transparent; color: var(--dim);
-    border: 1px solid var(--land-stroke); padding: 5px 11px;
-    border-radius: 4px; cursor: pointer;
-    font-family: inherit; font-size: 11px;
-    transition: all 0.15s;
+  .rp-sub {
+    font-size: 11px; color: var(--dim); letter-spacing: 1px;
+    margin-bottom: 10px;
   }
-  .rp-tab:hover { color: var(--text); }
-  .rp-tab.active {
-    background: rgba(124,243,195,0.1); color: var(--accent);
-    border-color: rgba(124,243,195,0.4);
+  .rp-volume {
+    display: grid; grid-template-columns: 22px 1fr 36px;
+    align-items: center; gap: 8px;
+    padding: 8px 4px; margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
   }
+  .rp-vol-icon { font-size: 14px; cursor: pointer; text-align: center; user-select: none; }
+  #rp-vol {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px; background: var(--land-stroke);
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+  #rp-vol::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    box-shadow: 0 0 6px rgba(124,243,195,0.6);
+  }
+  #rp-vol::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; border: none;
+    box-shadow: 0 0 6px rgba(124,243,195,0.6);
+  }
+  #rp-vol-val { font-size: 10px; color: var(--dim); text-align: right; }
   .rp-content { flex: 1; overflow-y: auto; font-size: 11px; }
   .rp-station {
     display: grid; grid-template-columns: 1fr auto; gap: 8px;
@@ -261,13 +276,6 @@
   .rp-st-name { color: var(--text); font-size: 11px; margin-bottom: 2px; word-break: break-word; }
   .rp-st-meta { color: var(--dim); font-size: 9px; letter-spacing: 0.5px; }
   .rp-st-play { color: var(--accent); font-size: 13px; padding: 0 4px; }
-  .rp-tv-link {
-    display: block; padding: 10px 12px; margin-bottom: 5px;
-    border: 1px solid var(--land-stroke); border-radius: 4px;
-    color: var(--text); text-decoration: none; font-size: 11px;
-    transition: all 0.15s;
-  }
-  .rp-tv-link:hover { border-color: var(--accent); color: var(--accent); }
   #rp-player { display: none; }
 
   .country-clickable { cursor: pointer; transition: fill 0.15s; }
@@ -320,9 +328,11 @@
 <aside class="region-panel" id="region-panel">
   <button class="rp-close" id="rp-close" title="close">×</button>
   <h3 id="rp-name">—</h3>
-  <div class="rp-tabs">
-    <button class="rp-tab active" data-rt="radio">📻 Radio</button>
-    <button class="rp-tab" data-rt="tv">📺 TV</button>
+  <div class="rp-sub">📻 Radio</div>
+  <div class="rp-volume">
+    <span class="rp-vol-icon" id="rp-vol-icon">🔊</span>
+    <input type="range" id="rp-vol" min="0" max="100" value="75">
+    <span id="rp-vol-val">75%</span>
   </div>
   <div class="rp-content" id="rp-content"></div>
 </aside>
@@ -1305,7 +1315,7 @@ const EONET_CATEGORY = {
 };
 function drawEonetDot([lon, lat], category, title, date) {
   const projected = projection([lon, lat]);
-  if (!projected) return;
+  if (!projected) return null;
   const [x, y] = projected;
   const meta = EONET_CATEGORY[category] || { icon: '⚠️', color: '#ff9966' };
   spawnPulse(x, y, meta.color, 16);
@@ -1325,22 +1335,33 @@ function drawEonetDot([lon, lat], category, title, date) {
     </div>
   `);
   logEntry('NASA', `${meta.icon} ${t(category)} · ${(title||'').slice(0,32)}`, 'eonet');
+  return text;
 }
 async function fetchEonet() {
   try {
     const r = await origFetch('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=200&days=30');
     if (!r.ok) return;
     const j = await r.json();
-    for (const ev of j.events || []) {
+    const events = j.events || [];
+    const currentIds = new Set(events.map(e => e.id));
+    // Remove stale (closed) events
+    for (const [id, sel] of eonetDots) {
+      if (!currentIds.has(id)) {
+        sel.transition().duration(500).attr('opacity', 0).remove();
+        eonetDots.delete(id);
+      }
+    }
+    // Add new
+    for (const ev of events) {
       if (eonetDots.has(ev.id)) continue;
       const cat = ev.categories?.[0]?.title || 'Event';
       const g = ev.geometry?.[ev.geometry.length - 1];
       if (!g?.coordinates) continue;
       const coords = Array.isArray(g.coordinates[0]) ? g.coordinates[0] : g.coordinates;
-      drawEonetDot([coords[0], coords[1]], cat, ev.title, g.date);
-      eonetDots.set(ev.id, true);
-      eonetCount++;
+      const sel = drawEonetDot([coords[0], coords[1]], cat, ev.title, g.date);
+      if (sel) eonetDots.set(ev.id, sel);
     }
+    eonetCount = eonetDots.size;
     updateLayerCount('eonet', eonetCount);
   } catch {}
 }
@@ -1351,6 +1372,10 @@ function startEonet() {
 }
 function stopEonet() {
   if (eonetTimer) { clearInterval(eonetTimer); eonetTimer = null; }
+  eonetDots.forEach(sel => sel.remove());
+  eonetDots.clear();
+  eonetCount = 0;
+  updateLayerCount('eonet', 0);
 }
 
 // --- Satellites: TLE-based orbit propagation (works for any satellite) ---
@@ -1823,66 +1848,6 @@ const ISO_N2A = {
   '862':'VE','882':'WS','887':'YE','894':'ZM',
 };
 
-const TV_LINKS = {
-  'South Korea': [
-    { name: '🔴 YTN Live', url: 'https://www.youtube.com/watch?v=YwOUEavqYi8' },
-    { name: '🔴 KBS News Live', url: 'https://www.youtube.com/@KBSNews' },
-    { name: '🔴 SBS News', url: 'https://www.youtube.com/@SBSnews8' },
-    { name: '🔴 MBC News', url: 'https://www.youtube.com/@MBCnews' },
-  ],
-  'United States of America': [
-    { name: '🔴 ABC News Live', url: 'https://www.youtube.com/watch?v=w_Ma8oQLmSM' },
-    { name: '🔴 NBC News Now', url: 'https://www.youtube.com/@NBCNews' },
-    { name: '🔴 PBS NewsHour', url: 'https://www.pbs.org/newshour/live' },
-    { name: '🔴 CBS News', url: 'https://www.cbsnews.com/live/' },
-  ],
-  'United Kingdom': [
-    { name: '🔴 BBC News', url: 'https://www.bbc.com/news/live' },
-    { name: '🔴 Sky News', url: 'https://www.youtube.com/watch?v=9Auq9mYxFEE' },
-    { name: '🔴 Channel 4 News', url: 'https://www.youtube.com/@Channel4News' },
-  ],
-  'Japan': [
-    { name: '🔴 NHK World Live', url: 'https://www3.nhk.or.jp/nhkworld/en/live/' },
-    { name: '🔴 ANN News', url: 'https://www.youtube.com/@ANNnewsCH' },
-    { name: '🔴 TBS News', url: 'https://www.youtube.com/@tbsnewsdig' },
-  ],
-  'France': [
-    { name: '🔴 France 24 EN', url: 'https://www.france24.com/en/live/' },
-    { name: '🔴 France 24 FR', url: 'https://www.france24.com/fr/direct/' },
-    { name: '🔴 BFM TV', url: 'https://www.youtube.com/@BFMTV' },
-  ],
-  'Germany': [
-    { name: '🔴 DW News', url: 'https://www.dw.com/en/live-tv/channel-english' },
-    { name: '🔴 Tagesschau', url: 'https://www.tagesschau.de/multimedia/livestreams/' },
-  ],
-  'Qatar':       [{ name: '🔴 Al Jazeera English', url: 'https://www.aljazeera.com/live' }],
-  'Russia':      [{ name: '🔴 RT', url: 'https://www.rt.com/on-air/' }],
-  'China':       [{ name: '🔴 CGTN', url: 'https://www.cgtn.com/livenews' }],
-  'Australia':   [{ name: '🔴 ABC News (AU)', url: 'https://iview.abc.net.au/show/abc-news' }],
-  'Italy':       [{ name: '🔴 Euronews IT', url: 'https://it.euronews.com/live' }, { name: '🔴 Rai News 24', url: 'https://www.rainews.it/dirette/rainews24' }],
-  'Spain':       [{ name: '🔴 RTVE 24h', url: 'https://www.rtve.es/play/videos/directo/canal-24h/' }],
-  'Brazil':      [{ name: '🔴 GloboNews', url: 'https://globoplay.globo.com/globonews/' }],
-  'India':       [{ name: '🔴 NDTV', url: 'https://www.ndtv.com/video/live/' }, { name: '🔴 Times Now', url: 'https://www.youtube.com/@TimesNow' }],
-  'Turkey':      [{ name: '🔴 TRT World', url: 'https://www.youtube.com/@trtworld' }],
-  'Canada':      [{ name: '🔴 CBC News', url: 'https://www.cbc.ca/player/news/live' }, { name: '🔴 CTV News', url: 'https://www.ctvnews.ca/video/live' }],
-  'Mexico':      [{ name: '🔴 Milenio', url: 'https://www.milenio.com/television/en-vivo-canal-milenio' }],
-  'Argentina':   [{ name: '🔴 TN', url: 'https://tn.com.ar/vivo' }],
-  'Singapore':   [{ name: '🔴 CNA', url: 'https://www.channelnewsasia.com/watch/cna-live' }],
-  'Taiwan':      [{ name: '🔴 TaiwanPlus', url: 'https://www.taiwanplus.com/' }],
-  'Indonesia':   [{ name: '🔴 KompasTV', url: 'https://www.youtube.com/@KompasTV' }],
-  'Philippines': [{ name: '🔴 ABS-CBN News', url: 'https://news.abs-cbn.com/live' }],
-  'Vietnam':     [{ name: '🔴 VTV4', url: 'https://vtv.vn/truyen-hinh-truc-tuyen/vtv4.htm' }],
-  'Thailand':    [{ name: '🔴 Thai PBS World', url: 'https://www.thaipbsworld.com/live/' }],
-  'Egypt':       [{ name: '🔴 Al Arabiya', url: 'https://www.alarabiya.net/live' }],
-  'Israel':      [{ name: '🔴 i24NEWS', url: 'https://www.i24news.tv/en/tv/live' }],
-  'South Africa':[{ name: '🔴 eNCA', url: 'https://www.enca.com/live' }],
-  'Netherlands': [{ name: '🔴 NOS', url: 'https://nos.nl/livestream' }],
-  'Sweden':      [{ name: '🔴 SVT Nyheter', url: 'https://www.svt.se/nyheter/live/' }],
-  'Norway':      [{ name: '🔴 NRK', url: 'https://tv.nrk.no/direkte/nrk1' }],
-  'Poland':      [{ name: '🔴 TVP Info', url: 'https://www.tvp.info/' }],
-  'Ukraine':     [{ name: '🔴 Suspilne Live', url: 'https://suspilne.media/' }],
-};
-
 const rpPlayer = $('rp-player');
 let currentStationUrl = null;
 
@@ -1951,28 +1916,14 @@ function playStation(url, el) {
   el.querySelector('.rp-st-play').textContent = '⏸';
   currentStationUrl = url;
 }
-function renderTV(countryName) {
-  const wrap = $('rp-content');
-  const links = TV_LINKS[countryName] || [];
-  if (!links.length) {
-    wrap.innerHTML = '<div style="color:var(--dim);padding:14px 4px">사전 등록된 방송이 없습니다 / No preset TV channels</div>';
-    return;
-  }
-  wrap.innerHTML = links.map(l => `<a class="rp-tv-link" href="${l.url}" target="_blank" rel="noopener">${l.name} →</a>`).join('');
-}
 async function openRegionPanel(countryName, isoCode) {
   const panel = $('region-panel');
   $('rp-name').textContent = countryName;
   panel.dataset.iso = isoCode || '';
   panel.classList.add('show');
-  const activeTab = panel.querySelector('.rp-tab.active').dataset.rt;
-  if (activeTab === 'radio') {
-    $('rp-content').innerHTML = '<div style="color:var(--dim);padding:14px 4px">로딩…</div>';
-    const stations = await loadStations(countryName, isoCode);
-    renderStations(stations);
-  } else {
-    renderTV(countryName);
-  }
+  $('rp-content').innerHTML = '<div style="color:var(--dim);padding:14px 4px">로딩…</div>';
+  const stations = await loadStations(countryName, isoCode);
+  renderStations(stations);
 }
 function closeRegionPanel() {
   $('region-panel').classList.remove('show');
@@ -1980,19 +1931,33 @@ function closeRegionPanel() {
   zoomReset();
 }
 $('rp-close').addEventListener('click', closeRegionPanel);
-$('region-panel').querySelectorAll('.rp-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    $('region-panel').querySelectorAll('.rp-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const name = $('rp-name').textContent;
-    const iso = $('region-panel').dataset.iso || '';
-    if (tab.dataset.rt === 'radio') {
-      $('rp-content').innerHTML = '<div style="color:var(--dim);padding:14px 4px">로딩…</div>';
-      loadStations(name, iso).then(renderStations);
-    } else {
-      renderTV(name);
-    }
-  });
+
+// --- Volume control (persisted in localStorage) ---
+const VOL_KEY = 'netatlas:radio-volume';
+const savedVol = parseInt(localStorage.getItem(VOL_KEY) || '75', 10);
+rpPlayer.volume = Math.max(0, Math.min(1, savedVol / 100));
+$('rp-vol').value = savedVol;
+$('rp-vol-val').textContent = savedVol + '%';
+let lastVol = savedVol > 0 ? savedVol : 75;
+function applyVol(v, save = true) {
+  const clamped = Math.max(0, Math.min(100, v));
+  rpPlayer.volume = clamped / 100;
+  $('rp-vol').value = clamped;
+  $('rp-vol-val').textContent = clamped + '%';
+  $('rp-vol-icon').textContent = clamped === 0 ? '🔇' : clamped < 33 ? '🔈' : clamped < 66 ? '🔉' : '🔊';
+  if (save) localStorage.setItem(VOL_KEY, String(clamped));
+}
+applyVol(savedVol, false);
+$('rp-vol').addEventListener('input', e => {
+  const v = +e.target.value;
+  if (v > 0) lastVol = v;
+  applyVol(v);
+});
+// Click speaker icon → mute toggle
+$('rp-vol-icon').addEventListener('click', () => {
+  const cur = +$('rp-vol').value;
+  if (cur > 0) { lastVol = cur; applyVol(0); }
+  else applyVol(lastVol || 75);
 });
 
 // ============================================================
@@ -2072,7 +2037,7 @@ streamHandlers.packets = { start: startPackets, stop: stopPackets };
 // volcanoes (VO), wildfires (WF), droughts (DR), with severity tiers.
 // ============================================================
 skipHosts.add('www.gdacs.org');
-let gdacsTimer = null, gdacsCount = 0, gdacsSeen = new Set();
+let gdacsTimer = null, gdacsCount = 0, gdacsDots = new Map();
 const GDACS_TYPE = {
   FL: { icon: '💧', label: 'Flood',           color: '#5cc8ff' },
   EQ: { icon: '🌍', label: 'Earthquake',      color: '#ff9966' },
@@ -2088,27 +2053,35 @@ async function fetchGdacs() {
     const r = await origFetch('https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP');
     if (!r.ok) return;
     const j = await r.json();
-    for (const f of j.features || []) {
+    const features = j.features || [];
+    const currentIds = new Set(features.map(f => f.properties?.eventid + '_' + f.properties?.episodeid));
+    // Remove stale events
+    for (const [id, sel] of gdacsDots) {
+      if (!currentIds.has(id)) {
+        sel.transition().duration(500).attr('opacity', 0).remove();
+        gdacsDots.delete(id);
+      }
+    }
+    for (const f of features) {
       const id = f.properties?.eventid + '_' + f.properties?.episodeid;
-      if (gdacsSeen.has(id)) continue;
-      gdacsSeen.add(id);
+      if (gdacsDots.has(id)) continue;
       const type = f.properties?.eventtype;
       const meta = GDACS_TYPE[type];
       if (!meta) continue;
       const [lon, lat] = f.geometry?.coordinates || [];
       if (lon == null) continue;
-      // Severity from icon URL (Green/Orange/Red)
       const sevMatch = /\/(Green|Orange|Red)\//.exec(f.properties.icon || '');
       const sevLevel = sevMatch ? sevMatch[1] : 'Green';
-      drawGdacsDot([lon, lat], meta, sevLevel, f.properties.name || f.properties.description, f.properties.fromdate);
-      gdacsCount++;
+      const sel = drawGdacsDot([lon, lat], meta, sevLevel, f.properties.name || f.properties.description, f.properties.fromdate);
+      if (sel) gdacsDots.set(id, sel);
     }
+    gdacsCount = gdacsDots.size;
     updateLayerCount('gdacs', gdacsCount);
   } catch {}
 }
 function drawGdacsDot([lon, lat], meta, sev, title, date) {
   const projected = projection([lon, lat]);
-  if (!projected) return;
+  if (!projected) return null;
   const [x, y] = projected;
   const alpha = GDACS_SEVERITY[sev] || 0.6;
   spawnPulse(x, y, meta.color, 18);
@@ -2126,6 +2099,7 @@ function drawGdacsDot([lon, lat], meta, sev, title, date) {
       ${date ? `<div class="tt-row"><span></span><span>${timeAgo(new Date(date))}</span></div>` : ''}
     </div>
   `);
+  return dot;
 }
 function startGdacs() {
   if (gdacsTimer) return;
@@ -2134,6 +2108,10 @@ function startGdacs() {
 }
 function stopGdacs() {
   if (gdacsTimer) { clearInterval(gdacsTimer); gdacsTimer = null; }
+  gdacsDots.forEach(sel => sel.remove());
+  gdacsDots.clear();
+  gdacsCount = 0;
+  updateLayerCount('gdacs', 0);
 }
 streamHandlers.gdacs = { start: startGdacs, stop: stopGdacs };
 
