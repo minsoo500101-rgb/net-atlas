@@ -153,10 +153,41 @@
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--land-stroke); border-radius: 2px; }
+
+  /* Tooltip on hover */
+  .tooltip {
+    position: fixed;
+    background: rgba(10, 14, 26, 0.96);
+    border: 1px solid rgba(124, 243, 195, 0.3);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 11px;
+    color: var(--text);
+    pointer-events: none;
+    z-index: 100;
+    max-width: 320px;
+    display: none;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    line-height: 1.5;
+  }
+  .tooltip.show { display: block; }
+  .tooltip .tt-title {
+    color: var(--accent); margin-bottom: 4px;
+    font-weight: 500; letter-spacing: 0.5px; font-size: 12px;
+  }
+  .tooltip .tt-body { color: var(--text); }
+  .tooltip .tt-sub {
+    color: var(--dim); font-size: 10px; margin-top: 6px;
+    letter-spacing: 0.5px;
+  }
+  .tooltip .tt-row { display: flex; justify-content: space-between; gap: 12px; }
+  .tip-target { cursor: help; }
 </style>
 </head>
 <body>
 <svg id="map"></svg>
+<div class="tooltip" id="tooltip"></div>
 
 <div class="header">
   <h1>NET ATLAS</h1>
@@ -220,6 +251,373 @@
 <script src="https://cdn.jsdelivr.net/npm/satellite.js@5/dist/satellite.min.js"></script>
 <script>
 'use strict';
+
+// ============================================================
+// i18n — auto-detect browser language, fall back to English
+// ============================================================
+const I18N = {
+  en: {
+    Wildfires: 'Wildfire',
+    Volcanoes: 'Volcano',
+    'Severe Storms': 'Severe Storm',
+    Floods: 'Flood',
+    'Sea and Lake Ice': 'Sea / Lake Ice',
+    Snow: 'Snow',
+    Drought: 'Drought',
+    Earthquakes: 'Earthquake',
+    Landslides: 'Landslide',
+    Dust: 'Dust / Haze',
+    Manmade: 'Man-made event',
+    'Water Color': 'Water Color',
+    'Temperature Extremes': 'Temperature Extreme',
+    Earthquake: 'Earthquake',
+    Magnitude: 'Magnitude',
+    Depth: 'Depth',
+    Altitude: 'Altitude',
+    Velocity: 'Velocity',
+    Position: 'Position',
+    ISS: 'International Space Station',
+    Tiangong: 'Tiangong (Chinese Space Station)',
+    Hubble: 'Hubble Space Telescope',
+    Starlink: 'Starlink satellite',
+    Started: 'Started',
+  },
+  ko: {
+    Wildfires: '산불',
+    Volcanoes: '화산',
+    'Severe Storms': '강한 폭풍',
+    Floods: '홍수',
+    'Sea and Lake Ice': '바다·호수 결빙',
+    Snow: '눈',
+    Drought: '가뭄',
+    Earthquakes: '지진',
+    Landslides: '산사태',
+    Dust: '먼지·황사',
+    Manmade: '인공 재해',
+    'Water Color': '수질 변화',
+    'Temperature Extremes': '극단 기온',
+    Earthquake: '지진',
+    Magnitude: '규모',
+    Depth: '깊이',
+    Altitude: '고도',
+    Velocity: '속도',
+    Position: '위치',
+    ISS: '국제우주정거장 (ISS)',
+    Tiangong: '톈궁 우주정거장',
+    Hubble: '허블 우주망원경',
+    Starlink: '스타링크 위성',
+    Started: '시작',
+  },
+  ja: {
+    Wildfires: '山火事',
+    Volcanoes: '火山',
+    'Severe Storms': '激しい嵐',
+    Floods: '洪水',
+    'Sea and Lake Ice': '海・湖の氷',
+    Snow: '雪',
+    Drought: '干ばつ',
+    Earthquakes: '地震',
+    Landslides: '地すべり',
+    Dust: '砂塵',
+    Manmade: '人為災害',
+    'Water Color': '水色変化',
+    'Temperature Extremes': '異常気温',
+    Earthquake: '地震',
+    Magnitude: 'マグニチュード',
+    Depth: '深さ',
+    Altitude: '高度',
+    Velocity: '速度',
+    Position: '位置',
+    ISS: '国際宇宙ステーション',
+    Tiangong: '天宮宇宙ステーション',
+    Hubble: 'ハッブル宇宙望遠鏡',
+    Starlink: 'スターリンク衛星',
+    Started: '発生',
+  },
+  zh: {
+    Wildfires: '野火',
+    Volcanoes: '火山',
+    'Severe Storms': '强风暴',
+    Floods: '洪水',
+    'Sea and Lake Ice': '海湖结冰',
+    Snow: '雪',
+    Drought: '干旱',
+    Earthquakes: '地震',
+    Landslides: '山体滑坡',
+    Dust: '沙尘',
+    Manmade: '人为灾害',
+    'Water Color': '水色变化',
+    'Temperature Extremes': '极端温度',
+    Earthquake: '地震',
+    Magnitude: '震级',
+    Depth: '深度',
+    Altitude: '高度',
+    Velocity: '速度',
+    Position: '位置',
+    ISS: '国际空间站',
+    Tiangong: '天宫空间站',
+    Hubble: '哈勃太空望远镜',
+    Starlink: '星链卫星',
+    Started: '开始',
+  },
+  es: {
+    Wildfires: 'Incendio forestal',
+    Volcanoes: 'Volcán',
+    'Severe Storms': 'Tormenta severa',
+    Floods: 'Inundación',
+    'Sea and Lake Ice': 'Hielo marino / lacustre',
+    Snow: 'Nieve',
+    Drought: 'Sequía',
+    Earthquakes: 'Terremoto',
+    Landslides: 'Deslizamiento',
+    Dust: 'Polvo',
+    Manmade: 'Evento antropogénico',
+    'Water Color': 'Color del agua',
+    'Temperature Extremes': 'Temperatura extrema',
+    Earthquake: 'Terremoto',
+    Magnitude: 'Magnitud',
+    Depth: 'Profundidad',
+    Altitude: 'Altitud',
+    Velocity: 'Velocidad',
+    Position: 'Posición',
+    ISS: 'Estación Espacial Internacional',
+    Tiangong: 'Estación espacial Tiangong',
+    Hubble: 'Telescopio espacial Hubble',
+    Starlink: 'Satélite Starlink',
+    Started: 'Inicio',
+  },
+  fr: {
+    Wildfires: 'Feu de forêt',
+    Volcanoes: 'Volcan',
+    'Severe Storms': 'Tempête violente',
+    Floods: 'Inondation',
+    'Sea and Lake Ice': 'Glace marine / lacustre',
+    Snow: 'Neige',
+    Drought: 'Sécheresse',
+    Earthquakes: 'Tremblement de terre',
+    Landslides: 'Glissement de terrain',
+    Dust: 'Poussière',
+    Manmade: 'Événement humain',
+    'Water Color': 'Couleur de l\'eau',
+    'Temperature Extremes': 'Extrême de température',
+    Earthquake: 'Séisme',
+    Magnitude: 'Magnitude',
+    Depth: 'Profondeur',
+    Altitude: 'Altitude',
+    Velocity: 'Vitesse',
+    Position: 'Position',
+    ISS: 'Station spatiale internationale',
+    Tiangong: 'Station spatiale Tiangong',
+    Hubble: 'Télescope spatial Hubble',
+    Starlink: 'Satellite Starlink',
+    Started: 'Début',
+  },
+  de: {
+    Wildfires: 'Waldbrand',
+    Volcanoes: 'Vulkan',
+    'Severe Storms': 'Schwerer Sturm',
+    Floods: 'Überschwemmung',
+    'Sea and Lake Ice': 'Meer- / Seeeis',
+    Snow: 'Schnee',
+    Drought: 'Dürre',
+    Earthquakes: 'Erdbeben',
+    Landslides: 'Erdrutsch',
+    Dust: 'Staub',
+    Manmade: 'Menschengemachtes Ereignis',
+    'Water Color': 'Wasserfarbe',
+    'Temperature Extremes': 'Temperaturextrem',
+    Earthquake: 'Erdbeben',
+    Magnitude: 'Stärke',
+    Depth: 'Tiefe',
+    Altitude: 'Höhe',
+    Velocity: 'Geschwindigkeit',
+    Position: 'Position',
+    ISS: 'Internationale Raumstation',
+    Tiangong: 'Raumstation Tiangong',
+    Hubble: 'Hubble-Weltraumteleskop',
+    Starlink: 'Starlink-Satellit',
+    Started: 'Beginn',
+  },
+  pt: {
+    Wildfires: 'Incêndio florestal',
+    Volcanoes: 'Vulcão',
+    'Severe Storms': 'Tempestade severa',
+    Floods: 'Inundação',
+    'Sea and Lake Ice': 'Gelo marinho / lacustre',
+    Snow: 'Neve',
+    Drought: 'Seca',
+    Earthquakes: 'Terremoto',
+    Landslides: 'Deslizamento',
+    Dust: 'Poeira',
+    Manmade: 'Evento antropogênico',
+    'Water Color': 'Cor da água',
+    'Temperature Extremes': 'Temperatura extrema',
+    Earthquake: 'Terremoto',
+    Magnitude: 'Magnitude',
+    Depth: 'Profundidade',
+    Altitude: 'Altitude',
+    Velocity: 'Velocidade',
+    Position: 'Posição',
+    ISS: 'Estação Espacial Internacional',
+    Tiangong: 'Estação espacial Tiangong',
+    Hubble: 'Telescópio espacial Hubble',
+    Starlink: 'Satélite Starlink',
+    Started: 'Início',
+  },
+  ru: {
+    Wildfires: 'Лесной пожар',
+    Volcanoes: 'Вулкан',
+    'Severe Storms': 'Сильный шторм',
+    Floods: 'Наводнение',
+    'Sea and Lake Ice': 'Лёд морей и озёр',
+    Snow: 'Снег',
+    Drought: 'Засуха',
+    Earthquakes: 'Землетрясение',
+    Landslides: 'Оползень',
+    Dust: 'Пыль',
+    Manmade: 'Антропогенное событие',
+    'Water Color': 'Цвет воды',
+    'Temperature Extremes': 'Экстремальная температура',
+    Earthquake: 'Землетрясение',
+    Magnitude: 'Магнитуда',
+    Depth: 'Глубина',
+    Altitude: 'Высота',
+    Velocity: 'Скорость',
+    Position: 'Позиция',
+    ISS: 'Международная космическая станция',
+    Tiangong: 'Космическая станция Тяньгун',
+    Hubble: 'Космический телескоп Хаббл',
+    Starlink: 'Спутник Starlink',
+    Started: 'Начало',
+  },
+  ar: {
+    Wildfires: 'حريق غابات',
+    Volcanoes: 'بركان',
+    'Severe Storms': 'عاصفة شديدة',
+    Floods: 'فيضان',
+    'Sea and Lake Ice': 'جليد البحار والبحيرات',
+    Snow: 'ثلج',
+    Drought: 'جفاف',
+    Earthquakes: 'زلزال',
+    Landslides: 'انزلاق أرضي',
+    Dust: 'غبار',
+    Manmade: 'حدث من صنع الإنسان',
+    'Water Color': 'لون الماء',
+    'Temperature Extremes': 'درجات حرارة قصوى',
+    Earthquake: 'زلزال',
+    Magnitude: 'القوة',
+    Depth: 'العمق',
+    Altitude: 'الارتفاع',
+    Velocity: 'السرعة',
+    Position: 'الموقع',
+    ISS: 'محطة الفضاء الدولية',
+    Tiangong: 'محطة الفضاء تيانقونغ',
+    Hubble: 'تلسكوب هابل الفضائي',
+    Starlink: 'قمر ستارلينك',
+    Started: 'بدأ',
+  },
+  it: {
+    Wildfires: 'Incendio boschivo',
+    Volcanoes: 'Vulcano',
+    'Severe Storms': 'Tempesta violenta',
+    Floods: 'Alluvione',
+    'Sea and Lake Ice': 'Ghiaccio marino / lacustre',
+    Snow: 'Neve',
+    Drought: 'Siccità',
+    Earthquakes: 'Terremoto',
+    Landslides: 'Frana',
+    Dust: 'Polvere',
+    Manmade: 'Evento antropico',
+    'Water Color': 'Colore dell\'acqua',
+    'Temperature Extremes': 'Temperatura estrema',
+    Earthquake: 'Terremoto',
+    Magnitude: 'Magnitudo',
+    Depth: 'Profondità',
+    Altitude: 'Altitudine',
+    Velocity: 'Velocità',
+    Position: 'Posizione',
+    ISS: 'Stazione Spaziale Internazionale',
+    Tiangong: 'Stazione spaziale Tiangong',
+    Hubble: 'Telescopio spaziale Hubble',
+    Starlink: 'Satellite Starlink',
+    Started: 'Inizio',
+  },
+  hi: {
+    Wildfires: 'जंगल की आग',
+    Volcanoes: 'ज्वालामुखी',
+    'Severe Storms': 'तेज़ तूफ़ान',
+    Floods: 'बाढ़',
+    'Sea and Lake Ice': 'समुद्री / झील बर्फ',
+    Snow: 'बर्फ़',
+    Drought: 'सूखा',
+    Earthquakes: 'भूकंप',
+    Landslides: 'भूस्खलन',
+    Dust: 'धूल',
+    Manmade: 'मानवजनित घटना',
+    'Water Color': 'जल का रंग',
+    'Temperature Extremes': 'तापमान चरम',
+    Earthquake: 'भूकंप',
+    Magnitude: 'तीव्रता',
+    Depth: 'गहराई',
+    Altitude: 'ऊँचाई',
+    Velocity: 'गति',
+    Position: 'स्थान',
+    ISS: 'अंतर्राष्ट्रीय अंतरिक्ष स्टेशन',
+    Tiangong: 'थ्येनकोंग अंतरिक्ष स्टेशन',
+    Hubble: 'हबल अंतरिक्ष दूरबीन',
+    Starlink: 'स्टारलिंक उपग्रह',
+    Started: 'शुरू',
+  },
+};
+const LANG = (() => {
+  const raw = (navigator.language || 'en').toLowerCase();
+  const base = raw.split('-')[0];
+  if (I18N[base]) return base;
+  if (raw.startsWith('zh')) return 'zh';
+  return 'en';
+})();
+const t = (key) => (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key;
+let rtf = null;
+try { rtf = new Intl.RelativeTimeFormat(LANG, { numeric: 'auto' }); } catch {}
+function timeAgo(date) {
+  if (!rtf || !date) return '';
+  const diff = (date.getTime() - Date.now()) / 1000;
+  const abs = Math.abs(diff);
+  if (abs < 60)       return rtf.format(Math.round(diff), 'second');
+  if (abs < 3600)     return rtf.format(Math.round(diff/60), 'minute');
+  if (abs < 86400)    return rtf.format(Math.round(diff/3600), 'hour');
+  if (abs < 86400*30) return rtf.format(Math.round(diff/86400), 'day');
+  return rtf.format(Math.round(diff/(86400*30)), 'month');
+}
+
+// ============================================================
+// Tooltip (cursor-following, multilingual)
+// ============================================================
+const ttEl = document.getElementById('tooltip');
+function tipShow(evt, html) {
+  ttEl.innerHTML = html;
+  ttEl.classList.add('show');
+  tipMove(evt);
+}
+function tipMove(evt) {
+  const pad = 14;
+  const w = ttEl.offsetWidth, h = ttEl.offsetHeight;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if (x + w + pad > window.innerWidth)  x = evt.clientX - w - pad;
+  if (y + h + pad > window.innerHeight) y = evt.clientY - h - pad;
+  ttEl.style.left = x + 'px';
+  ttEl.style.top = y + 'px';
+}
+function tipHide() { ttEl.classList.remove('show'); }
+
+function attachTip(d3sel, htmlFn) {
+  d3sel
+    .classed('tip-target', true)
+    .style('pointer-events', 'auto')
+    .on('mouseenter', function(evt) { tipShow(evt, htmlFn()); })
+    .on('mousemove',  function(evt) { tipMove(evt); })
+    .on('mouseleave', tipHide);
+}
 
 // Keep an unpatched fetch so our own lookups don't recurse
 const origFetch = window.fetch.bind(window);
@@ -751,19 +1149,28 @@ const EONET_CATEGORY = {
   'Landslides':     { icon: '⛰️', color: '#cca066' },
   Dust:             { icon: '💨', color: '#d4a878' },
 };
-function drawEonetDot([lon, lat], category, title) {
+function drawEonetDot([lon, lat], category, title, date) {
   const projected = projection([lon, lat]);
   if (!projected) return;
   const [x, y] = projected;
   const meta = EONET_CATEGORY[category] || { icon: '⚠️', color: '#ff9966' };
   spawnPulse(x, y, meta.color, 16);
-  gDots.append('text').attr('x', x).attr('y', y + 4)
-    .attr('text-anchor', 'middle').attr('font-size', 12)
+  const text = gDots.append('text')
+    .attr('x', x).attr('y', y + 4)
+    .attr('text-anchor', 'middle').attr('font-size', 14)
     .style('filter', `drop-shadow(0 0 4px ${meta.color})`)
     .attr('opacity', 0)
-    .text(meta.icon)
-    .transition().duration(500).attr('opacity', 0.9);
-  logEntry('NASA', `${meta.icon} ${category} · ${(title||'').slice(0,32)}`, 'eonet');
+    .text(meta.icon);
+  text.transition().duration(500).attr('opacity', 0.9);
+  attachTip(text, () => `
+    <div class="tt-title">${meta.icon} ${t(category)}</div>
+    <div class="tt-body">${(title || '').replace(/[<>]/g,'')}</div>
+    <div class="tt-sub">
+      ${Math.abs(lat).toFixed(2)}°${lat>=0?'N':'S'}, ${Math.abs(lon).toFixed(2)}°${lon>=0?'E':'W'}
+      ${date ? ' · ' + t('Started') + ' ' + timeAgo(new Date(date)) : ''}
+    </div>
+  `);
+  logEntry('NASA', `${meta.icon} ${t(category)} · ${(title||'').slice(0,32)}`, 'eonet');
 }
 async function fetchEonet() {
   try {
@@ -776,7 +1183,7 @@ async function fetchEonet() {
       const g = ev.geometry?.[ev.geometry.length - 1];
       if (!g?.coordinates) continue;
       const coords = Array.isArray(g.coordinates[0]) ? g.coordinates[0] : g.coordinates;
-      drawEonetDot([coords[0], coords[1]], cat, ev.title);
+      drawEonetDot([coords[0], coords[1]], cat, ev.title, g.date);
       eonetDots.set(ev.id, true);
       eonetCount++;
     }
@@ -822,13 +1229,13 @@ function propagateSat(satrec) {
   const geo = satellite.eciToGeodetic(pv.position, gmst);
   const lat = satellite.degreesLat(geo.latitude);
   let lon = satellite.degreesLong(geo.longitude);
-  // velocity in km/s -> km/h
+  const altitude = geo.height; // km
   let speed = null;
   if (pv.velocity) {
     const v = pv.velocity;
     speed = Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z) * 3600;
   }
-  return { lat, lon, speed };
+  return { lat, lon, speed, altitude };
 }
 async function fetchSats() {
   // First call: load TLEs for any sat we don't have yet (one-time per sat)
@@ -841,6 +1248,7 @@ async function fetchSats() {
     if (!rec) continue;
     const pos = propagateSat(rec);
     if (!pos) continue;
+    sat.latest = pos;
     updateSatPosition(sat, pos.lat, pos.lon);
     if (sat.id === '25544' && pos.speed) {
       const v = Math.round(pos.speed);
@@ -863,6 +1271,18 @@ function updateSatPosition(sat, lat, lon) {
       .style('filter', `drop-shadow(0 0 6px ${sat.color})`);
     g.append('text').attr('font-size', 9).attr('fill', sat.color)
       .attr('opacity', 0.9).attr('x', 8).attr('y', -6).text(sat.name);
+    // Tooltip attached to the whole group — covers dot + ring + label
+    attachTip(g, () => {
+      const p = sat.latest || {};
+      return `
+        <div class="tt-title">${sat.name} — ${t(sat.name)}</div>
+        <div class="tt-sub">
+          ${p.altitude != null ? `<div class="tt-row"><span>${t('Altitude')}</span><span>${p.altitude.toFixed(0)} km</span></div>` : ''}
+          ${p.speed     != null ? `<div class="tt-row"><span>${t('Velocity')}</span><span>${Math.round(p.speed).toLocaleString()} km/h</span></div>` : ''}
+          ${p.lat       != null ? `<div class="tt-row"><span>${t('Position')}</span><span>${p.lat.toFixed(2)}°, ${p.lon.toFixed(2)}°</span></div>` : ''}
+        </div>
+      `;
+    });
     satMarkers.set(sat.id, g);
     satTrails.set(sat.id, []);
   }
@@ -901,27 +1321,38 @@ async function fetchEarthquakes() {
     for (const f of j.features || []) {
       const id = f.id;
       if (eqDots.has(id)) continue;
-      const [lon, lat] = f.geometry.coordinates;
+      const [lon, lat, depth] = f.geometry.coordinates;
       const mag = f.properties.mag || 0;
       const place = f.properties.place || '';
-      drawEqDot([lon, lat], mag, place);
+      const time = f.properties.time;
+      drawEqDot([lon, lat, depth], mag, place, time);
       eqDots.set(id, true);
       eqCount++;
     }
     $('stream-eq-count').textContent = eqCount;
   } catch {}
 }
-function drawEqDot([lon, lat], mag, place) {
+function drawEqDot([lon, lat, depth], mag, place, time) {
   const projected = projection([lon, lat]);
   if (!projected) return;
   const [x, y] = projected;
   const r = Math.max(1.5, Math.min(8, 1.5 + mag * 0.9));
   const color = mag >= 5 ? '#ff5050' : mag >= 3 ? '#ff7a5c' : '#ffb86b';
   spawnPulse(x, y, color, r * 3);
-  gDots.append('circle').attr('cx', x).attr('cy', y).attr('r', 0)
+  const dot = gDots.append('circle').attr('cx', x).attr('cy', y).attr('r', 0)
     .attr('fill', color).attr('fill-opacity', 0.75)
-    .style('filter', `drop-shadow(0 0 4px ${color})`)
-    .transition().duration(400).attr('r', r);
+    .style('filter', `drop-shadow(0 0 4px ${color})`);
+  dot.transition().duration(400).attr('r', r);
+  attachTip(dot, () => `
+    <div class="tt-title">${t('Earthquake')} M${mag.toFixed(1)}</div>
+    <div class="tt-body">${place || ''}</div>
+    <div class="tt-sub">
+      <div class="tt-row"><span>${t('Magnitude')}</span><span>${mag.toFixed(1)}</span></div>
+      ${depth != null ? `<div class="tt-row"><span>${t('Depth')}</span><span>${depth.toFixed(0)} km</span></div>` : ''}
+      <div class="tt-row"><span>${t('Position')}</span><span>${lat.toFixed(2)}°, ${lon.toFixed(2)}°</span></div>
+      ${time ? `<div class="tt-row"><span></span><span>${timeAgo(new Date(time))}</span></div>` : ''}
+    </div>
+  `);
   if (mag >= 4) {
     logEntry('USGS', `M${mag.toFixed(1)} · ${place.slice(0, 40)}`, 'eq');
   }
