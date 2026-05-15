@@ -134,8 +134,8 @@
   @keyframes streampulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 
   /* Layers button + panel */
+  .header-btns { margin-top: 10px; display: flex; gap: 6px; }
   .layers-btn {
-    margin-top: 10px;
     background: rgba(10,14,26,0.7);
     color: var(--text);
     border: 1px solid var(--land-stroke);
@@ -209,6 +209,59 @@
   }
   .lp-meta a { color: var(--link); text-decoration: none; }
   .lp-count { font-size: 9px; color: var(--accent); margin-left: 4px; }
+
+  /* News panel — right side, full-height */
+  .news-panel {
+    position: fixed; right: -400px; top: 0; bottom: 0;
+    width: 380px;
+    background: rgba(10,14,26,0.96);
+    border-left: 1px solid var(--land-stroke);
+    padding: 18px 16px;
+    z-index: 55;
+    display: flex; flex-direction: column;
+    backdrop-filter: blur(12px);
+    transition: right 0.35s cubic-bezier(.4,.0,.2,1);
+    box-shadow: -10px 0 30px rgba(0,0,0,0.4);
+  }
+  .news-panel.show { right: 0; }
+  .news-panel h3 {
+    margin: 0 0 12px; font-size: 14px; color: var(--accent);
+    letter-spacing: 1px; padding-right: 28px;
+  }
+  .news-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .news-tab {
+    background: transparent; color: var(--dim);
+    border: 1px solid var(--land-stroke); padding: 5px 10px;
+    border-radius: 4px; cursor: pointer;
+    font-family: inherit; font-size: 11px;
+    transition: all 0.15s;
+  }
+  .news-tab:hover { color: var(--text); }
+  .news-tab.active {
+    background: rgba(124,243,195,0.1); color: var(--accent);
+    border-color: rgba(124,243,195,0.4);
+  }
+  .news-content { flex: 1; overflow-y: auto; padding-right: 4px; }
+  .news-card {
+    display: block;
+    padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+    color: var(--text); text-decoration: none;
+    transition: background 0.12s;
+  }
+  .news-card:hover { background: rgba(124,243,195,0.04); }
+  .nc-title { font-size: 12px; color: var(--text); line-height: 1.45; margin-bottom: 4px; }
+  .nc-meta {
+    font-size: 9px; color: var(--dim); letter-spacing: 0.4px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .nc-meta .nc-src { color: var(--link); }
+  .nc-meta .nc-lang { color: var(--accent); }
+  .nc-img {
+    width: 100%; max-height: 100px; object-fit: cover;
+    border-radius: 4px; margin-bottom: 6px;
+    background: var(--panel-2);
+  }
+  .news-empty { color: var(--dim); padding: 14px 4px; font-size: 11px; }
 
   /* Region panel */
   .region-panel {
@@ -319,6 +372,15 @@
 <body>
 <svg id="map"></svg>
 <div class="tooltip" id="tooltip"></div>
+<aside class="news-panel" id="news-panel">
+  <button class="lp-close" id="news-close" title="close">×</button>
+  <h3>📰 World Feed · Real-time</h3>
+  <div class="news-tabs">
+    <button class="news-tab active" data-feed="global">🌍 Global (Wikipedia)</button>
+    <button class="news-tab" data-feed="hn">💻 Tech (HN)</button>
+  </div>
+  <div class="news-content" id="news-content"></div>
+</aside>
 <aside class="layers-panel" id="layers-panel">
   <button class="lp-close" id="lp-close" title="close">×</button>
   <h3>Data Layers</h3>
@@ -342,7 +404,10 @@
   <h1>NET ATLAS</h1>
   <div class="sub">실시간으로 흐르는 인터넷</div>
   <div class="you" id="you">→ 위치 확인 중…</div>
-  <button class="layers-btn" id="layers-btn">⚙ Layers</button>
+  <div class="header-btns">
+    <button class="layers-btn" id="layers-btn">⚙ Layers</button>
+    <button class="layers-btn" id="news-btn">📰 News</button>
+  </div>
   <div class="ticker" id="ticker">
     <span><b id="t-wiki">0</b>편집/분</span>
     <span><b id="t-bsky">0</b>포스트/분</span>
@@ -785,7 +850,7 @@ const path = d3.geoPath(projection);
 const gSphere    = svg.append('g');
 const gGraticule = svg.append('g');
 const gMap       = svg.append('g');
-const gAurora    = svg.append('g').attr('class', 'aurora-layer'); // above land, below pulses
+const gCables    = svg.append('g').attr('class', 'cables-layer');
 const gSun       = svg.append('g').attr('class', 'sun-layer');
 const gArcs      = svg.append('g');
 const gPackets   = svg.append('g').attr('class', 'packets-layer');
@@ -1204,7 +1269,8 @@ let satsTimer = null, satMarkers = new Map(), satTrails = new Map();
 
 const streamSkip = new Set([
   'stream.wikimedia.org', 'jetstream2.us-east.bsky.network', 'earthquake.usgs.gov',
-  'eonet.gsfc.nasa.gov', 'celestrak.org', 'tle.ivanstanojevic.me', 'services.swpc.noaa.gov',
+  'eonet.gsfc.nasa.gov', 'celestrak.org', 'tle.ivanstanojevic.me',
+  'api.gdeltproject.org', 'hacker-news.firebaseio.com',
 ]);
 streamSkip.forEach(h => skipHosts.add(h));
 
@@ -1606,23 +1672,31 @@ async function fetchEarthquakes() {
     const r = await origFetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson');
     if (!r.ok) return;
     const j = await r.json();
-    for (const f of j.features || []) {
-      const id = f.id;
-      if (eqDots.has(id)) continue;
+    const features = j.features || [];
+    const currentIds = new Set(features.map(f => f.id));
+    // Remove stale (older than 1 hour — dropped from "all_hour" feed)
+    for (const [id, sel] of eqDots) {
+      if (!currentIds.has(id)) {
+        sel.transition().duration(500).attr('opacity', 0).remove();
+        eqDots.delete(id);
+      }
+    }
+    for (const f of features) {
+      if (eqDots.has(f.id)) continue;
       const [lon, lat, depth] = f.geometry.coordinates;
       const mag = f.properties.mag || 0;
       const place = f.properties.place || '';
       const time = f.properties.time;
-      drawEqDot([lon, lat, depth], mag, place, time);
-      eqDots.set(id, true);
-      eqCount++;
+      const sel = drawEqDot([lon, lat, depth], mag, place, time);
+      if (sel) eqDots.set(f.id, sel);
     }
+    eqCount = eqDots.size;
     updateLayerCount('eq', eqCount);
   } catch {}
 }
 function drawEqDot([lon, lat, depth], mag, place, time) {
   const projected = projection([lon, lat]);
-  if (!projected) return;
+  if (!projected) return null;
   const [x, y] = projected;
   const r = Math.max(1.5, Math.min(8, 1.5 + mag * 0.9));
   const color = mag >= 5 ? '#ff5050' : mag >= 3 ? '#ff7a5c' : '#ffb86b';
@@ -1644,6 +1718,7 @@ function drawEqDot([lon, lat, depth], mag, place, time) {
   if (mag >= 4) {
     logEntry('USGS', `M${mag.toFixed(1)} · ${place.slice(0, 40)}`, 'eq');
   }
+  return dot;
 }
 function startEq() {
   if (eqTimer) return;
@@ -1652,46 +1727,10 @@ function startEq() {
 }
 function stopEq() {
   if (eqTimer) { clearInterval(eqTimer); eqTimer = null; }
-}
-
-// --- NOAA Aurora oval (where polar lights are visible right now) ---
-let auroraTimer = null;
-async function fetchAurora() {
-  try {
-    const r = await origFetch('https://services.swpc.noaa.gov/json/ovation_aurora_latest.json');
-    if (!r.ok) return;
-    const j = await r.json();
-    drawAurora(j.coordinates || []);
-  } catch {}
-}
-function drawAurora(coords) {
-  gAurora.selectAll('*').remove();
-  // Aggressive filtering: only points with intensity ≥ 8, every 3rd sampled
-  // 7000 → ~1500 SVG nodes for much better perf
-  for (let i = 0; i < coords.length; i += 3) {
-    const [lon0, lat, intensity] = coords[i];
-    if (intensity < 8) continue;
-    const lon = lon0 > 180 ? lon0 - 360 : lon0;
-    const projected = projection([lon, lat]);
-    if (!projected) continue;
-    const opacity = Math.min(intensity / 80, 0.55);
-    const r = 3 + Math.min(intensity / 30, 2.5);
-    gAurora.append('circle')
-      .attr('cx', projected[0]).attr('cy', projected[1])
-      .attr('r', r)
-      .attr('fill', '#88ffd4')
-      .attr('fill-opacity', opacity)
-      .style('filter', 'blur(1.5px)');
-  }
-}
-function startAurora() {
-  if (auroraTimer) return;
-  fetchAurora();
-  auroraTimer = setInterval(fetchAurora, 5 * 60 * 1000);
-}
-function stopAurora() {
-  if (auroraTimer) { clearInterval(auroraTimer); auroraTimer = null; }
-  gAurora.selectAll('*').remove();
+  eqDots.forEach(sel => sel.remove());
+  eqDots.clear();
+  eqCount = 0;
+  updateLayerCount('eq', 0);
 }
 
 // --- Sub-solar point: where the sun is directly overhead right now ---
@@ -1752,7 +1791,6 @@ const streamHandlers = {
   bsky:   { start: startBsky,   stop: stopBsky   },
   eq:     { start: startEq,     stop: stopEq     },
   eonet:  { start: startEonet,  stop: stopEonet  },
-  aurora: { start: startAurora, stop: stopAurora },
   sats:   { start: startSats,   stop: stopSats   },
 };
 document.querySelectorAll('.stream-toggle').forEach(btn => {
@@ -1961,68 +1999,111 @@ $('rp-vol-icon').addEventListener('click', () => {
 });
 
 // ============================================================
-// PACKETS: animated flow between major Internet Exchange Points
+// SUBMARINE CABLES — curated list of major intercontinental routes
+// Approximate landing-station endpoints. Drawn as glowing arcs.
+// Packets travel along these cables (not arbitrary great-circles).
 // ============================================================
-const IXPs = [
-  ['Ashburn',     39.04, -77.49, 10],
-  ['San Jose',    37.34,-121.89, 8],
-  ['Los Angeles', 34.05,-118.24, 6],
-  ['Miami',       25.76, -80.19, 5],
-  ['Toronto',     43.65, -79.38, 4],
-  ['Mexico City', 19.43, -99.13, 3],
-  ['São Paulo',  -23.55, -46.63, 4],
-  ['Frankfurt',   50.11,   8.68, 10],
-  ['Amsterdam',   52.37,   4.90, 8],
-  ['London',      51.51,  -0.13, 9],
-  ['Paris',       48.86,   2.35, 5],
-  ['Marseille',   43.30,   5.37, 4],
-  ['Madrid',      40.42,  -3.70, 3],
-  ['Stockholm',   59.33,  18.07, 3],
-  ['Moscow',      55.75,  37.62, 3],
-  ['Istanbul',    41.01,  28.98, 3],
-  ['Dubai',       25.20,  55.27, 4],
-  ['Cairo',       30.04,  31.24, 2],
-  ['Johannesburg',-26.20,  28.04, 3],
-  ['Mumbai',      19.08,  72.88, 5],
-  ['Singapore',    1.35, 103.82, 8],
-  ['Hong Kong',   22.32, 114.17, 7],
-  ['Tokyo',       35.68, 139.76, 8],
-  ['Seoul',       37.57, 126.98, 6],
-  ['Sydney',     -33.87, 151.21, 4],
+const CABLES = [
+  // Trans-Atlantic
+  { name: 'MAREA',          a:[-75.97, 36.86], b:[-1.66, 43.40] },          // Virginia ↔ Bilbao
+  { name: 'Grace Hopper',   a:[-75.97, 36.86], b:[-4.55, 50.83] },          // Virginia ↔ Bude, UK
+  { name: 'Dunant',         a:[-75.97, 36.86], b:[-1.94, 46.71] },          // Virginia ↔ Saint-Hilaire
+  { name: 'Amitié',         a:[-71.30, 41.50], b:[-4.55, 50.83] },          // Mass. ↔ Bude
+  { name: 'TAT-14',         a:[-74.40, 40.12], b:[4.42, 52.18] },           // NJ ↔ Katwijk
+  { name: 'AEC-1',          a:[-74.00, 40.71], b:[-9.14, 38.72] },          // NYC ↔ Lisbon
+  { name: 'Anjana',         a:[-74.40, 40.12], b:[-3.81, 43.46] },          // NJ ↔ Santander
+  { name: 'EllaLink',       a:[-9.14, 38.72],  b:[-38.59, -3.73] },         // Sines ↔ Fortaleza
+  // Trans-Pacific
+  { name: 'FASTER',         a:[-124.4, 43.12], b:[140.30, 35.16] },         // Bandon ↔ Chikura
+  { name: 'JUPITER',        a:[-118.5, 33.97], b:[140.30, 35.16] },         // Hermosa Beach ↔ Maruyama
+  { name: 'Unity',          a:[-120.86, 35.36],b:[140.30, 35.16] },         // Morro Bay ↔ Chikura
+  { name: 'PLCN',           a:[-118.39, 33.92],b:[114.17, 22.32] },         // El Segundo ↔ HK
+  { name: 'NCP',            a:[-123.93, 45.20],b:[121.83, 24.86] },         // Pacific City ↔ Toucheng
+  { name: 'New Cross Pac',  a:[-119.70, 34.42],b:[121.83, 24.86] },         // Hillsboro ↔ Toucheng
+  { name: 'SEA-US',         a:[-117.16, 32.71],b:[125.61, 7.07] },          // San Diego ↔ Davao
+  { name: 'Echo',           a:[-122.51, 37.50],b:[103.86, 1.32] },          // SF ↔ Singapore
+  { name: 'Bifrost',        a:[-118.40, 33.88],b:[103.62, 1.27] },          // Manhattan Beach ↔ Tuas
+  { name: 'Hawaiki',        a:[-123.93, 45.20],b:[174.85, -36.18] },        // Pacific City ↔ Mangawhai
+  { name: 'PIPE',           a:[151.20, -33.87],b:[144.79, 13.45] },         // Sydney ↔ Guam
+  { name: 'AAG',            a:[-118.40, 33.88],b:[114.17, 22.32] },         // LA ↔ HK
+  // Asia ↔ Europe
+  { name: 'SEA-ME-WE 4',    a:[5.37, 43.30],   b:[103.86, 1.32] },          // Marseille ↔ Singapore
+  { name: 'SEA-ME-WE 5',    a:[5.37, 43.30],   b:[103.86, 1.32] },          // Marseille ↔ Singapore (slight northern offset)
+  { name: 'EIG',            a:[-9.14, 38.72],  b:[72.88, 19.08] },          // Lisbon ↔ Mumbai
+  { name: 'IMEWE',          a:[15.09, 37.51],  b:[72.88, 19.08] },          // Catania ↔ Mumbai
+  { name: 'AAE-1',          a:[5.37, 43.30],   b:[114.17, 22.32] },         // Marseille ↔ HK
+  // Africa
+  { name: 'WACS',           a:[-9.14, 38.72],  b:[18.42, -33.92] },         // Lisbon ↔ Cape Town
+  { name: 'Africa-1',       a:[15.09, 37.51],  b:[39.66, -4.04] },          // Sicily ↔ Mombasa
+  { name: 'SAT-3',          a:[-9.14, 38.72],  b:[18.42, -33.92] },         // Lisbon ↔ Cape Town
+  // South America / Caribbean
+  { name: 'SAm-1',          a:[-66.10, 18.46], b:[-43.20, -22.91] },        // San Juan ↔ Rio
+  { name: 'Curie',          a:[-118.39, 33.92],b:[-70.65, -33.45] },        // LA ↔ Valparaíso
+  // Intra-Asia
+  { name: 'Indigo W',       a:[115.86, -31.95],b:[103.86, 1.32] },          // Perth ↔ Singapore
+  { name: 'Indigo C',       a:[151.20, -33.87],b:[115.86, -31.95] },        // Sydney ↔ Perth
+  { name: 'APG',            a:[114.17, 22.32], b:[139.76, 35.68] },         // HK ↔ Tokyo
+  { name: 'KJCN',           a:[126.98, 37.57], b:[139.76, 35.68] },         // Seoul ↔ Tokyo
 ];
-let packetsTimer = null;
-function weightedPickIXP() {
-  const total = IXPs.reduce((s, x) => s + x[3], 0);
-  let r = Math.random() * total;
-  for (const x of IXPs) { r -= x[3]; if (r < 0) return x; }
-  return IXPs[0];
+
+let cablesDrawn = false;
+function drawCables() {
+  if (cablesDrawn) return;
+  gCables.selectAll('*').remove();
+  for (const c of CABLES) {
+    const d = path(greatCircle(c.a, c.b, 40));
+    if (!d) continue;
+    gCables.append('path')
+      .attr('d', d)
+      .attr('fill', 'none')
+      .attr('stroke', '#5ec4ff')
+      .attr('stroke-width', 0.6)
+      .attr('opacity', 0.18)
+      .attr('class', 'cable')
+      .attr('data-name', c.name);
+  }
+  cablesDrawn = true;
 }
+function startCables() {
+  drawCables();
+}
+function stopCables() {
+  gCables.selectAll('*').remove();
+  cablesDrawn = false;
+}
+streamHandlers.cables = { start: startCables, stop: stopCables };
+
+// ============================================================
+// PACKETS — animated dots traveling along submarine cables
+// ============================================================
+let packetsTimer = null;
 function spawnPacket() {
-  const a = weightedPickIXP();
-  let b = weightedPickIXP();
-  if (a === b) b = IXPs[(IXPs.indexOf(a) + 1) % IXPs.length];
-  const src = [a[2], a[1]], dst = [b[2], b[1]];
-  const d = path(greatCircle(src, dst, 48));
-  if (!d) return;
-  const trail = gPackets.append('path').attr('d', d).attr('fill','none')
-    .attr('stroke', '#5ec4ff').attr('stroke-width', 0.5).attr('opacity', 0.25);
+  const cableNodes = gCables.selectAll('path.cable').nodes();
+  if (cableNodes.length === 0) return;
+  const cable = cableNodes[Math.floor(Math.random() * cableNodes.length)];
   let len;
-  try { len = trail.node().getTotalLength(); } catch { trail.remove(); return; }
-  if (!isFinite(len) || len === 0 || len > 8000) { trail.remove(); return; }
-  trail.transition().delay(800).duration(2200).attr('opacity', 0).remove();
-  const packet = gPackets.append('circle').attr('r', 2).attr('fill', '#82ffd8')
-    .style('filter', 'drop-shadow(0 0 5px #82ffd8)');
-  packet.transition().duration(2200).ease(d3.easeCubicInOut)
+  try { len = cable.getTotalLength(); } catch { return; }
+  if (!isFinite(len) || len < 5) return;
+  const reverse = Math.random() < 0.5;
+  // Briefly highlight the cable
+  d3.select(cable)
+    .transition().duration(150).attr('opacity', 0.55)
+    .transition().duration(2000).attr('opacity', 0.18);
+  const packet = gPackets.append('circle').attr('r', 2.2).attr('fill', '#82ffd8')
+    .style('filter', 'drop-shadow(0 0 6px #82ffd8)');
+  packet.transition().duration(1800).ease(d3.easeCubicInOut)
     .attrTween('transform', () => t => {
-      const p = trail.node().getPointAtLength(t * len);
+      const u = reverse ? 1 - t : t;
+      const p = cable.getPointAtLength(u * len);
       return `translate(${p.x},${p.y})`;
     })
     .on('end', () => packet.remove());
 }
 function startPackets() {
   if (packetsTimer) return;
+  drawCables(); // ensure cables exist
   spawnPacket();
-  packetsTimer = setInterval(spawnPacket, 220);
+  packetsTimer = setInterval(spawnPacket, 180);
 }
 function stopPackets() {
   if (packetsTimer) { clearInterval(packetsTimer); packetsTimer = null; }
@@ -2162,8 +2243,8 @@ const LAYER_DEFS = [
   { key:'eq',      name:'지진 (USGS)',           meta:'earthquake.usgs.gov · 1시간 이내 모든 지진',                       color:'#ff7a5c' },
   { key:'eonet',   name:'자연재해 (NASA EONET)', meta:'eonet.gsfc.nasa.gov · 활성 산불·화산·태풍·홍수',                  color:'#ff9966' },
   { key:'gdacs',   name:'재난 경보 (GDACS)',     meta:'www.gdacs.org · UN 글로벌 재난 경보 (홍수/지진/태풍/화산/가뭄)',   color:'#ff5050' },
-  { key:'aurora',  name:'오로라 (NOAA OVATION)', meta:'services.swpc.noaa.gov · 5분 간격 갱신',                           color:'#88ffd4' },
-  { key:'sats',    name:'위성 6개',              meta:'celestrak.org TLE + satellite.js · ISS · Tiangong · Hubble · GOES-16 · Sentinel-2A · NOAA-19', color:'#ffe066' },
+  { key:'cables',  name:'해저 케이블',           meta:'TeleGeography 기반 큐레이션 · 주요 대륙간 인터넷 백본',            color:'#5ec4ff' },
+  { key:'sats',    name:'위성 6개',              meta:'tle.ivanstanojevic.me TLE + satellite.js · ISS · Tiangong · Hubble · GOES-16 · Sentinel-2A · NOAA-19', color:'#ffe066' },
   { key:'sun',     name:'태양 천정 (Subsolar)',  meta:'천체역학 계산 · 지구상 태양 직하점',                                color:'#fff2a8' },
   { key:'packets', name:'패킷 흐름',             meta:'세계 25개 IXP 간 great-circle 애니메이션',                          color:'#82ffd8' },
   { key:'hosts',   name:'호스트 핑 자동기록',    meta:'페이지가 호출하는 외부 호스트를 자동으로 지도에 기록',              color:'#82d8ff' },
@@ -2205,13 +2286,128 @@ document.getElementById('lp-close').addEventListener('click', () => {
   document.getElementById('layers-panel').classList.remove('show');
 });
 
+// ============================================================
+// NEWS panel — GDELT global articles + HackerNews tech
+// ============================================================
+let newsCurrentFeed = 'global';
+let newsRefreshTimer = null;
+
+// Wikipedia REST "feed/featured" — curated "in the news" + most-read articles.
+// Falls back day-by-day if today's feed isn't up yet.
+async function fetchGlobal() {
+  const $c = $('news-content');
+  $c.innerHTML = '<div class="news-empty">불러오는 중…</div>';
+  try {
+    let j = null;
+    for (let dayOff = 0; dayOff < 3 && !j; dayOff++) {
+      const d = new Date(Date.now() - dayOff * 86400000);
+      const y = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(d.getUTCDate()).padStart(2, '0');
+      const r = await origFetch(`https://en.wikipedia.org/api/rest_v1/feed/featured/${y}/${mm}/${dd}`);
+      if (r.ok) j = await r.json();
+    }
+    if (!j) { $c.innerHTML = '<div class="news-empty">결과 없음</div>'; return; }
+    const blocks = [];
+    // In the news (curated)
+    if (j.news?.length) {
+      blocks.push('<div style="color:var(--accent);font-size:11px;letter-spacing:1px;margin:4px 0 8px">📰 IN THE NEWS</div>');
+      for (const item of j.news) {
+        const storyHtml = (item.story || '').replace(/<!--[^]*?-->/g, '');
+        const url = item.links?.[0]?.content_urls?.desktop?.page
+                 || (item.links?.[0]?.titles?.canonical ? `https://en.wikipedia.org/wiki/${item.links[0].titles.canonical}` : 'https://en.wikipedia.org/wiki/Portal:Current_events');
+        blocks.push(`
+          <a class="news-card" href="${url}" target="_blank" rel="noopener">
+            <div class="nc-title">${storyHtml}</div>
+            <div class="nc-meta"><span class="nc-src">en.wikipedia.org</span></div>
+          </a>`);
+      }
+    }
+    // Most read today
+    if (j.mostread?.articles?.length) {
+      blocks.push('<div style="color:var(--accent);font-size:11px;letter-spacing:1px;margin:14px 0 8px">🔥 MOST READ TODAY</div>');
+      for (const a of j.mostread.articles.slice(0, 12)) {
+        const thumb = a.thumbnail?.source ? `<img class="nc-img" src="${a.thumbnail.source}" loading="lazy" onerror="this.style.display='none'">` : '';
+        const extract = (a.extract || '').slice(0, 140);
+        blocks.push(`
+          <a class="news-card" href="${a.content_urls?.desktop?.page || '#'}" target="_blank" rel="noopener">
+            ${thumb}
+            <div class="nc-title">${a.normalizedtitle || a.title}</div>
+            <div class="nc-meta">
+              <span class="nc-src">${a.views?.toLocaleString() || ''} views</span>
+              <span style="opacity:.8">${extract}</span>
+            </div>
+          </a>`);
+      }
+    }
+    $c.innerHTML = blocks.join('') || '<div class="news-empty">결과 없음</div>';
+  } catch (e) {
+    $c.innerHTML = '<div class="news-empty">에러: ' + String(e).slice(0, 80) + '</div>';
+  }
+}
+async function fetchHN() {
+  const $c = $('news-content');
+  $c.innerHTML = '<div class="news-empty">불러오는 중…</div>';
+  try {
+    const r = await origFetch('https://hacker-news.firebaseio.com/v0/topstories.json');
+    const ids = (await r.json()).slice(0, 30);
+    const stories = await Promise.all(ids.map(id =>
+      origFetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(r => r.json()).catch(() => null)
+    ));
+    const items = stories.filter(s => s && s.title);
+    if (!items.length) { $c.innerHTML = '<div class="news-empty">결과 없음</div>'; return; }
+    $c.innerHTML = items.map(s => {
+      const ago = s.time ? timeAgo(new Date(s.time * 1000)) : '';
+      const host = s.url ? (new URL(s.url).hostname) : 'news.ycombinator.com';
+      const url = s.url || `https://news.ycombinator.com/item?id=${s.id}`;
+      return `
+        <a class="news-card" href="${url}" target="_blank" rel="noopener">
+          <div class="nc-title">${(s.title || '').replace(/[<>]/g,'')}</div>
+          <div class="nc-meta">
+            <span class="nc-src">${host}</span>
+            <span>▲ ${s.score || 0}</span>
+            <span>💬 ${s.descendants || 0}</span>
+            <span style="margin-left:auto">${ago}</span>
+          </div>
+        </a>`;
+    }).join('');
+  } catch (e) {
+    $c.innerHTML = '<div class="news-empty">에러: ' + String(e).slice(0, 80) + '</div>';
+  }
+}
+function loadNewsFeed(feed) {
+  newsCurrentFeed = feed;
+  document.querySelectorAll('.news-tab').forEach(t => t.classList.toggle('active', t.dataset.feed === feed));
+  if (feed === 'global') fetchGlobal();
+  else fetchHN();
+}
+function openNewsPanel() {
+  document.getElementById('news-panel').classList.add('show');
+  loadNewsFeed(newsCurrentFeed);
+  // Auto-refresh every 3 min while open
+  if (!newsRefreshTimer) newsRefreshTimer = setInterval(() => {
+    if (document.getElementById('news-panel').classList.contains('show')) {
+      loadNewsFeed(newsCurrentFeed);
+    }
+  }, 3 * 60 * 1000);
+}
+function closeNewsPanel() {
+  document.getElementById('news-panel').classList.remove('show');
+  if (newsRefreshTimer) { clearInterval(newsRefreshTimer); newsRefreshTimer = null; }
+}
+document.getElementById('news-btn').addEventListener('click', openNewsPanel);
+document.getElementById('news-close').addEventListener('click', closeNewsPanel);
+document.querySelectorAll('.news-tab').forEach(t => {
+  t.addEventListener('click', () => loadNewsFeed(t.dataset.feed));
+});
+
 // Auto-start: every layer on page load (user toggles via panel)
 startWiki();
 startBsky();
 startEq();
 startEonet();
 startGdacs();
-startAurora();
+startCables();
 startSats();
 startPackets();
 startSun();
