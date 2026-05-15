@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Net Atlas — 통신한 지점들</title>
+<style>
+  :root {
+    --bg: #050810;
+    --land: #131a2e;
+    --land-stroke: #233052;
+    --grid: #0f1626;
+    --you: #7cf3c3;
+    --target: #82d8ff;
+    --arc: #82d8ff;
+    --text: #e6ecff;
+    --dim: #8895b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; overflow: hidden;
+    background: radial-gradient(ellipse at center, #0a1020 0%, #050810 70%);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Consolas', 'D2Coding', monospace;
+  }
+  #map { position: absolute; inset: 0; width: 100vw; height: 100vh; }
+  .header { position: absolute; top: 16px; left: 20px; z-index: 10; pointer-events: none; }
+  .header h1 {
+    font-size: 12px; letter-spacing: 6px; font-weight: 500;
+    color: var(--dim); margin-bottom: 6px;
+  }
+  .header h1::before {
+    content: ''; display: inline-block;
+    width: 6px; height: 6px; background: var(--you);
+    border-radius: 50%; margin-right: 8px;
+    vertical-align: middle;
+    animation: blip 1.6s infinite;
+  }
+  @keyframes blip { 0%,100% {opacity:1;} 50% {opacity:0.3;} }
+  .header .sub { font-size: 10px; color: var(--dim); letter-spacing: 1px; }
+  .header .you { font-size: 11px; color: var(--you); margin-top: 10px; letter-spacing: 1px; }
+
+  .stats {
+    position: absolute; top: 16px; right: 20px; z-index: 10;
+    font-size: 10px; color: var(--dim); text-align: right;
+    display: flex; gap: 18px;
+  }
+  .stats > div { line-height: 1.2; }
+  .stats .num { color: var(--text); font-size: 22px; font-weight: 300; letter-spacing: 1px; }
+  .stats .label { letter-spacing: 2px; text-transform: uppercase; }
+
+  .controls {
+    position: absolute; bottom: 16px; left: 20px; right: 20px; z-index: 10;
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  }
+  .controls input, .controls button {
+    font-family: inherit; font-size: 11px;
+    background: rgba(10,14,26,0.7); color: var(--text);
+    border: 1px solid var(--land-stroke);
+    padding: 7px 11px; border-radius: 4px;
+    backdrop-filter: blur(8px);
+  }
+  .controls input { width: 220px; }
+  .controls input::placeholder { color: var(--dim); }
+  .controls button { cursor: pointer; transition: all .2s; }
+  .controls button:hover { border-color: var(--you); color: var(--you); }
+  .controls button.active {
+    border-color: var(--you); color: var(--you);
+    background: rgba(124,243,195,0.08);
+  }
+  .preset {
+    color: var(--dim) !important; font-size: 10px !important;
+    padding: 5px 8px !important;
+  }
+  .preset:hover { color: var(--target) !important; border-color: var(--target) !important; }
+  .divider {
+    width: 1px; height: 20px; background: var(--land-stroke);
+    margin: 0 4px;
+  }
+  .label-inline { font-size: 10px; color: var(--dim); letter-spacing: 1px; }
+
+  .log {
+    position: absolute; bottom: 70px; left: 20px; z-index: 10;
+    font-size: 10px; color: var(--dim);
+    width: 340px; max-height: 240px; overflow-y: auto;
+    background: rgba(10,14,26,0.55); padding: 10px 12px; border-radius: 6px;
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(42,53,83,0.5);
+  }
+  .log-entry {
+    padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.03);
+    display: grid; grid-template-columns: 48px 1fr 80px; gap: 8px;
+    animation: fadein 0.3s ease;
+  }
+  @keyframes fadein { from{opacity:0;transform:translateX(-4px);} to{opacity:1;transform:none;} }
+  .log-entry .t { color: var(--dim); font-size: 9px; }
+  .log-entry .h { color: var(--target); }
+  .log-entry .c { color: var(--dim); font-size: 9px; text-align: right; }
+  .log-entry.fail .h { color: #ff6b8a; opacity: 0.7; }
+
+  .legend {
+    position: absolute; bottom: 60px; right: 20px; z-index: 10;
+    font-size: 10px; color: var(--dim); text-align: right;
+    background: rgba(10,14,26,0.55); padding: 6px 10px; border-radius: 4px;
+    backdrop-filter: blur(4px);
+  }
+  .legend span { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0 4px -1px 8px; }
+  .legend .y { background: var(--you); box-shadow: 0 0 6px var(--you); }
+  .legend .t { background: var(--target); box-shadow: 0 0 6px var(--target); }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--land-stroke); border-radius: 2px; }
+</style>
+</head>
+<body>
+<svg id="map"></svg>
+
+<div class="header">
+  <h1>NET ATLAS</h1>
+  <div class="sub">통신한 지점을 점과 선으로 잇는다</div>
+  <div class="you" id="you">→ 위치 확인 중…</div>
+</div>
+
+<div class="stats">
+  <div><div class="num" id="stat-points">0</div><div class="label">지점</div></div>
+  <div><div class="num" id="stat-links">0</div><div class="label">연결</div></div>
+  <div><div class="num" id="stat-countries">0</div><div class="label">국가</div></div>
+</div>
+
+<div class="log" id="log"></div>
+
+<div class="legend">
+  <span class="y"></span>나
+  <span class="t"></span>통신 지점
+</div>
+
+<div class="controls">
+  <input id="custom" type="text" placeholder="hostname (예: github.com)" autocomplete="off" />
+  <button id="ping-btn">Ping</button>
+  <button id="auto-btn">Auto ▶</button>
+  <button id="clear-btn">Clear</button>
+  <div class="divider"></div>
+  <span class="label-inline">PRESETS</span>
+  <button class="preset" data-host="github.com">github</button>
+  <button class="preset" data-host="wikipedia.org">wikipedia</button>
+  <button class="preset" data-host="naver.com">naver</button>
+  <button class="preset" data-host="bbc.co.uk">bbc</button>
+  <button class="preset" data-host="nhk.or.jp">nhk</button>
+  <button class="preset" data-host="lemonde.fr">lemonde</button>
+  <button class="preset" data-host="abc.net.au">abc.au</button>
+  <button class="preset" data-host="globo.com">globo</button>
+  <button class="preset" data-host="aljazeera.com">aljazeera</button>
+  <button class="preset" data-host="yandex.ru">yandex</button>
+  <button class="preset" data-host="taobao.com">taobao</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script>
+'use strict';
+
+// Keep an unpatched fetch so our own lookups don't recurse
+const origFetch = window.fetch.bind(window);
+
+const svg = d3.select('#map');
+let width = window.innerWidth, height = window.innerHeight;
+svg.attr('width', width).attr('height', height);
+
+const projection = d3.geoNaturalEarth1()
+  .scale(width / 6.3)
+  .translate([width / 2, height / 2]);
+const path = d3.geoPath(projection);
+
+// Layers (back → front)
+const gSphere    = svg.append('g');
+const gGraticule = svg.append('g');
+const gMap       = svg.append('g');
+const gArcs      = svg.append('g');
+const gDots      = svg.append('g');
+const gLabels    = svg.append('g');
+
+// Globe background (the sphere itself)
+gSphere.append('path').datum({ type: 'Sphere' })
+  .attr('d', path)
+  .attr('fill', '#091122')
+  .attr('stroke', '#1a2238')
+  .attr('stroke-width', 0.5);
+
+// Graticule (lat/lon grid)
+const graticule = d3.geoGraticule().step([20, 20]);
+gGraticule.append('path').datum(graticule())
+  .attr('d', path)
+  .attr('fill', 'none')
+  .attr('stroke', '#0f1626')
+  .attr('stroke-width', 0.5);
+
+// Load countries
+(async () => {
+  try {
+    const world = await origFetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(r => r.json());
+    const countries = topojson.feature(world, world.objects.countries).features;
+    gMap.selectAll('path').data(countries).join('path')
+      .attr('d', path)
+      .attr('fill', '#131a2e')
+      .attr('stroke', '#233052')
+      .attr('stroke-width', 0.4);
+  } catch (e) {
+    console.error('map load failed', e);
+  }
+})();
+
+// State
+const plottedHosts = new Map(); // host -> {lon, lat, country, city}
+const countrySet = new Set();
+let linkCount = 0;
+let youCoords = null;
+
+const $ = id => document.getElementById(id);
+
+function updateStats() {
+  $('stat-points').textContent = plottedHosts.size;
+  $('stat-links').textContent = linkCount;
+  $('stat-countries').textContent = countrySet.size;
+}
+
+function logEntry(host, country, status = 'ok') {
+  const log = $('log');
+  const div = document.createElement('div');
+  div.className = 'log-entry' + (status === 'fail' ? ' fail' : '');
+  const t = new Date();
+  const ts = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}`;
+  div.innerHTML = `<span class="t">${ts}</span><span class="h">${host}</span><span class="c">${country || status}</span>`;
+  log.prepend(div);
+  while (log.children.length > 40) log.lastChild.remove();
+}
+
+// Great-circle path as LineString sampled for projection
+function greatCircle(a, b, segments = 64) {
+  const interp = d3.geoInterpolate(a, b);
+  const coords = [];
+  for (let i = 0; i <= segments; i++) coords.push(interp(i / segments));
+  return { type: 'LineString', coordinates: coords };
+}
+
+function drawArc(a, b) {
+  if (!a || !b) return;
+  const d = path(greatCircle(a, b));
+  if (!d) return;
+  const arc = gArcs.append('path')
+    .attr('d', d)
+    .attr('fill', 'none')
+    .attr('stroke', '#82d8ff')
+    .attr('stroke-width', 1)
+    .attr('stroke-opacity', 0.85)
+    .style('filter', 'drop-shadow(0 0 3px rgba(130,216,255,0.6))');
+  const len = arc.node().getTotalLength();
+  arc.attr('stroke-dasharray', `${len} ${len}`)
+    .attr('stroke-dashoffset', len)
+    .transition().duration(1400).ease(d3.easeCubicOut)
+    .attr('stroke-dashoffset', 0)
+    .transition().delay(4000).duration(8000)
+    .attr('stroke-opacity', 0.18)
+    .style('filter', 'none');
+}
+
+function spawnPulse(x, y, color, maxR = 18) {
+  gDots.append('circle')
+    .attr('cx', x).attr('cy', y).attr('r', 3)
+    .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.2)
+    .attr('opacity', 0.8)
+    .transition().duration(2000).ease(d3.easeCubicOut)
+    .attr('r', maxR).attr('opacity', 0)
+    .remove();
+}
+
+function drawDot([lon, lat], kind, host) {
+  const projected = projection([lon, lat]);
+  if (!projected) return;
+  const [x, y] = projected;
+  const color = kind === 'you' ? '#7cf3c3' : '#82d8ff';
+  const r = kind === 'you' ? 4 : 2.5;
+
+  // initial pulse
+  spawnPulse(x, y, color, kind === 'you' ? 22 : 14);
+
+  // persistent dot
+  gDots.append('circle')
+    .attr('cx', x).attr('cy', y).attr('r', 0)
+    .attr('fill', color)
+    .style('filter', `drop-shadow(0 0 4px ${color})`)
+    .transition().duration(400).attr('r', r);
+
+  // hostname label
+  if (host) {
+    gLabels.append('text')
+      .attr('x', x + 6).attr('y', y - 5)
+      .attr('font-size', 9)
+      .attr('font-family', 'JetBrains Mono, Consolas, monospace')
+      .attr('fill', kind === 'you' ? '#7cf3c3' : '#8895b8')
+      .attr('opacity', 0)
+      .text(host)
+      .transition().duration(600).attr('opacity', 0.85);
+  }
+
+  // recurring pulse for "you"
+  if (kind === 'you') {
+    setInterval(() => spawnPulse(x, y, color, 22), 2200);
+  }
+}
+
+async function lookupHost(host) {
+  const r = await origFetch(`https://ipwho.is/${encodeURIComponent(host)}`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'lookup failed');
+  return { lon: j.longitude, lat: j.latitude, country: j.country, city: j.city };
+}
+
+async function plotHost(host) {
+  if (!host) return;
+
+  // already known → just draw a new arc (a fresh "communication")
+  if (plottedHosts.has(host)) {
+    const info = plottedHosts.get(host);
+    if (youCoords) {
+      drawArc(youCoords, [info.lon, info.lat]);
+      linkCount++; updateStats();
+    }
+    return;
+  }
+
+  try {
+    const info = await lookupHost(host);
+    if (info.lon == null || info.lat == null) {
+      logEntry(host, '', 'no geo'); return;
+    }
+    plottedHosts.set(host, info);
+    if (info.country) countrySet.add(info.country);
+    drawDot([info.lon, info.lat], 'target', host);
+    if (youCoords) { drawArc(youCoords, [info.lon, info.lat]); linkCount++; }
+    logEntry(host, info.city ? `${info.city}, ${info.country}` : info.country);
+    updateStats();
+  } catch (e) {
+    logEntry(host, '', 'fail');
+  }
+}
+
+async function initYou() {
+  try {
+    const r = await origFetch('https://ipwho.is/');
+    const j = await r.json();
+    if (!j.success) throw new Error('failed');
+    youCoords = [j.longitude, j.latitude];
+    drawDot(youCoords, 'you', `${j.city || ''} (나)`);
+    $('you').textContent = `→ ${j.city || '?'}, ${j.country || '?'} (나)`;
+  } catch {
+    $('you').textContent = '→ 위치 확인 실패';
+  }
+}
+
+// Auto-plot every cross-origin fetch this page makes
+const skipHosts = new Set(['ipwho.is', 'cdn.jsdelivr.net']);
+window.fetch = function (input, init) {
+  try {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (url) {
+      const u = new URL(url, location.href);
+      if (u.hostname && u.hostname !== location.hostname && !skipHosts.has(u.hostname)) {
+        plotHost(u.hostname);
+      }
+    }
+  } catch {}
+  return origFetch(input, init);
+};
+
+// --- Controls ---
+$('ping-btn').addEventListener('click', () => {
+  const v = $('custom').value.trim();
+  if (!v) return;
+  let h = v;
+  try { h = new URL(v.startsWith('http') ? v : 'https://' + v).hostname; } catch {}
+  plotHost(h);
+  $('custom').value = '';
+});
+$('custom').addEventListener('keydown', e => { if (e.key === 'Enter') $('ping-btn').click(); });
+
+document.querySelectorAll('.preset').forEach(btn => {
+  btn.addEventListener('click', () => plotHost(btn.dataset.host));
+});
+
+let autoTimer = null;
+const autoPool = [
+  'github.com','wikipedia.org','naver.com','bbc.co.uk','nhk.or.jp','lemonde.fr',
+  'abc.net.au','globo.com','taobao.com','yandex.ru','aljazeera.com','elpais.com',
+  'reuters.com','spiegel.de','timesofindia.com','thehindu.com','sankei.com',
+  'elmundo.es','dawn.com','cna.com.tw','straitstimes.com','smh.com.au','rfi.fr',
+  'dw.com','clarin.com','independent.co.uk','heise.de','folha.uol.com.br',
+  'kbs.co.kr','chosun.com','asahi.com','people.com.cn','tagesschau.de',
+  'lefigaro.fr','nzherald.co.nz','iol.co.za',
+];
+$('auto-btn').addEventListener('click', e => {
+  const btn = e.currentTarget;
+  if (autoTimer) {
+    clearInterval(autoTimer); autoTimer = null;
+    btn.classList.remove('active'); btn.textContent = 'Auto ▶';
+  } else {
+    btn.classList.add('active'); btn.textContent = 'Auto ❚❚';
+    const fire = () => plotHost(autoPool[Math.floor(Math.random() * autoPool.length)]);
+    fire();
+    autoTimer = setInterval(fire, 2800);
+  }
+});
+
+$('clear-btn').addEventListener('click', () => {
+  gArcs.selectAll('*').remove();
+  gDots.selectAll('*').remove();
+  gLabels.selectAll('*').remove();
+  plottedHosts.clear(); countrySet.clear(); linkCount = 0;
+  $('log').innerHTML = '';
+  updateStats();
+  if (youCoords) drawDot(youCoords, 'you', '(나)');
+});
+
+// Reproject on resize
+function reproject() {
+  width = window.innerWidth; height = window.innerHeight;
+  svg.attr('width', width).attr('height', height);
+  projection.scale(width / 6.3).translate([width / 2, height / 2]);
+  gSphere.selectAll('path').attr('d', path);
+  gGraticule.selectAll('path').attr('d', path);
+  gMap.selectAll('path').attr('d', path);
+  // wipe overlays and redraw from state
+  gArcs.selectAll('*').remove();
+  gDots.selectAll('*').remove();
+  gLabels.selectAll('*').remove();
+  const hosts = [...plottedHosts.entries()];
+  linkCount = 0;
+  if (youCoords) drawDot(youCoords, 'you', '(나)');
+  for (const [h, info] of hosts) {
+    drawDot([info.lon, info.lat], 'target', h);
+    if (youCoords) { drawArc(youCoords, [info.lon, info.lat]); linkCount++; }
+  }
+  updateStats();
+}
+window.addEventListener('resize', () => {
+  clearTimeout(window.__rt); window.__rt = setTimeout(reproject, 200);
+});
+
+initYou();
+</script>
+</body>
+</html>
