@@ -334,6 +334,165 @@
   .country-clickable { cursor: pointer; transition: fill 0.15s; }
   .country-clickable:hover { fill: #1f2a44; }
 
+  /* ========== BOOT SEQUENCE ========== */
+  .boot {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #050810;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.6s, visibility 0.6s;
+  }
+  .boot.done { opacity: 0; visibility: hidden; pointer-events: none; }
+  .boot-frame {
+    width: 520px; max-width: 90vw;
+    padding: 30px 40px 36px;
+    border: 1px solid rgba(124,243,195,0.3);
+    border-radius: 4px;
+    position: relative;
+    box-shadow: 0 0 60px rgba(124,243,195,0.1) inset, 0 0 100px rgba(0,0,0,0.6);
+  }
+  .boot-frame::before, .boot-frame::after {
+    content: ''; position: absolute;
+    width: 32px; height: 32px;
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 8px rgba(124,243,195,0.5);
+  }
+  .boot-frame::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+  .boot-frame::after { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+  .boot-title {
+    font-size: 38px; letter-spacing: 12px; font-weight: 300;
+    background: linear-gradient(90deg, #7cf3c3, #82b6ff, #b682ff, #ffb86b, #7cf3c3);
+    background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: chromatic 8s linear infinite, boot-flicker 0.06s 8 both;
+    margin-bottom: 4px;
+  }
+  .boot-sub {
+    font-size: 10px; color: var(--dim); letter-spacing: 4px;
+    margin-bottom: 18px; padding-bottom: 12px;
+    border-bottom: 1px solid rgba(124,243,195,0.15);
+  }
+  .boot-log {
+    font-family: inherit; font-size: 11px; color: var(--dim);
+    line-height: 1.7; margin: 0; min-height: 200px;
+    white-space: pre-wrap;
+  }
+  .boot-log .ok { color: var(--accent); font-weight: 500; }
+  .boot-log .ln {
+    display: block; opacity: 0;
+    animation: bootln 0.25s forwards;
+  }
+  @keyframes bootln {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes boot-flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @keyframes chromatic { to { background-position: 300% 0%; } }
+
+  /* ========== CUSTOM CURSOR ========== */
+  body { cursor: none; }
+  input, textarea { cursor: text; }
+  .cursor, .cursor-dot { pointer-events: none; will-change: transform; }
+  .cursor {
+    position: fixed; left: 0; top: 0;
+    width: 26px; height: 26px;
+    border: 1px solid rgba(124,243,195,0.65);
+    border-radius: 50%;
+    z-index: 9997;
+    transform: translate(-50%, -50%);
+    transition: width 0.2s, height 0.2s, border-color 0.2s, background 0.2s;
+    mix-blend-mode: screen;
+  }
+  .cursor::before, .cursor::after {
+    content: ''; position: absolute;
+    background: var(--accent);
+  }
+  .cursor::before { left: 50%; top: -5px; width: 1px; height: 9px; transform: translateX(-50%); }
+  .cursor::after  { top: 50%; left: -5px; height: 1px; width: 9px; transform: translateY(-50%); }
+  .cursor.hover {
+    width: 44px; height: 44px;
+    border-color: var(--accent);
+    background: rgba(124,243,195,0.05);
+  }
+  .cursor-dot {
+    position: fixed; left: 0; top: 0;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent);
+    z-index: 9998; transform: translate(-50%, -50%);
+    box-shadow: 0 0 12px var(--accent);
+  }
+
+  /* ========== HUD CORNER BRACKETS ========== */
+  .hud-bracket {
+    position: fixed; width: 56px; height: 56px;
+    border: 1px solid rgba(124,243,195,0.25);
+    pointer-events: none; z-index: 5;
+  }
+  .hud-bracket.tl { top: 12px; left: 12px; border-right: 0; border-bottom: 0; }
+  .hud-bracket.tr { top: 12px; right: 12px; border-left: 0; border-bottom: 0; }
+  .hud-bracket.bl { bottom: 12px; left: 12px; border-right: 0; border-top: 0; }
+  .hud-bracket.br { bottom: 12px; right: 12px; border-left: 0; border-top: 0; }
+
+  /* ========== SCAN LINES (subtle CRT vibe) ========== */
+  .scanlines {
+    position: fixed; inset: 0; pointer-events: none; z-index: 2000;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,0.02) 0px,
+      rgba(255,255,255,0.02) 1px,
+      transparent 1px, transparent 3px
+    );
+    mix-blend-mode: overlay;
+  }
+  .vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 2001;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.45) 100%);
+  }
+
+  /* ========== HEADER TITLE: chromatic gradient ========== */
+  .header h1 {
+    background: linear-gradient(90deg, #7cf3c3, #82b6ff, #b682ff, #ffb86b, #7cf3c3);
+    background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: chromatic 12s linear infinite;
+    color: transparent;
+  }
+  .header h1::before { display: none; }
+
+  /* ========== BUTTONS: idle glow sweep ========== */
+  .layers-btn { position: relative; overflow: hidden; }
+  .layers-btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(124,243,195,0.18), transparent);
+    transform: translateX(-100%);
+    animation: glow-sweep 5s infinite;
+    pointer-events: none;
+  }
+  @keyframes glow-sweep {
+    0% { transform: translateX(-100%); }
+    60%, 100% { transform: translateX(100%); }
+  }
+
+  /* ========== CLICK RIPPLE ========== */
+  .ripple {
+    position: fixed; width: 10px; height: 10px;
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    pointer-events: none; z-index: 9000;
+    transform: translate(-50%, -50%);
+    animation: ripple-out 0.7s ease-out forwards;
+  }
+  @keyframes ripple-out {
+    to { width: 100px; height: 100px; opacity: 0; border-width: 0.5px; }
+  }
+
+  /* ========== TEXT REVEAL ========== */
+  .scramble-text { font-variant-numeric: tabular-nums; }
+
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--land-stroke); border-radius: 2px; }
@@ -370,6 +529,21 @@
 </style>
 </head>
 <body>
+<div class="boot" id="boot">
+  <div class="boot-frame">
+    <div class="boot-title">NET ATLAS</div>
+    <div class="boot-sub">v3.0 · LIVE WORLD ATLAS · SYSTEM BOOT</div>
+    <pre class="boot-log" id="boot-log"></pre>
+  </div>
+</div>
+<div class="cursor" id="cursor"></div>
+<div class="cursor-dot" id="cursor-dot"></div>
+<div class="hud-bracket tl"></div>
+<div class="hud-bracket tr"></div>
+<div class="hud-bracket bl"></div>
+<div class="hud-bracket br"></div>
+<div class="scanlines"></div>
+<div class="vignette"></div>
 <svg id="map"></svg>
 <div class="tooltip" id="tooltip"></div>
 <aside class="news-panel" id="news-panel">
@@ -460,6 +634,93 @@
 <script src="https://cdn.jsdelivr.net/npm/satellite.js@5/dist/satellite.min.js"></script>
 <script>
 'use strict';
+
+// ============================================================
+// VFX — boot screen + custom cursor + click ripples + scramble
+// ============================================================
+(function runBoot() {
+  const boot = document.getElementById('boot');
+  const log = document.getElementById('boot-log');
+  if (!boot || !log) return;
+  const lines = [
+    '> initializing system core ............... <span class="ok">OK</span>',
+    '> handshake stream.wikimedia.org .......... <span class="ok">OK</span>',
+    '> handshake jetstream2.bsky.network ....... <span class="ok">OK</span>',
+    '> loading 34 submarine cables ............. <span class="ok">OK</span>',
+    '> propagating 6 satellite TLEs ............ <span class="ok">OK</span>',
+    '> computing subsolar geometry ............. <span class="ok">OK</span>',
+    '> establishing ground link ................ <span class="ok">OK</span>',
+    '',
+    '[ <span class="ok">ONLINE</span> ]   listening to the earth.',
+  ];
+  let i = 0;
+  function step() {
+    if (i < lines.length) {
+      log.innerHTML += `<span class="ln" style="animation-delay:${i*40}ms">${lines[i] || ' '}</span>\n`;
+      i++;
+      setTimeout(step, 130);
+    } else {
+      setTimeout(() => boot.classList.add('done'), 600);
+    }
+  }
+  step();
+})();
+
+// Custom cursor — outer ring + trailing dot
+(function runCursor() {
+  const c = document.getElementById('cursor');
+  const dot = document.getElementById('cursor-dot');
+  if (!c || !dot) return;
+  let mx = window.innerWidth / 2, my = window.innerHeight / 2;
+  let dx = mx, dy = my;
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    c.style.transform = `translate(${mx}px, ${my}px)`;
+  });
+  function follow() {
+    dx += (mx - dx) * 0.22;
+    dy += (my - dy) * 0.22;
+    dot.style.transform = `translate(${dx}px, ${dy}px)`;
+    requestAnimationFrame(follow);
+  }
+  follow();
+  // Hover state on interactive elements
+  document.addEventListener('mouseover', e => {
+    const hit = e.target.closest('button, a, .country-clickable, .rp-station, .news-card, .lp-toggle, .speed-btn, input, [data-stream], .stream-toggle');
+    c.classList.toggle('hover', !!hit);
+  });
+})();
+
+// Click ripple
+document.addEventListener('click', e => {
+  const r = document.createElement('div');
+  r.className = 'ripple';
+  r.style.left = e.clientX + 'px';
+  r.style.top = e.clientY + 'px';
+  document.body.appendChild(r);
+  setTimeout(() => r.remove(), 700);
+});
+
+// Text scramble — cinematic reveal for dynamic text
+function scrambleText(el, finalText, duration = 500) {
+  if (!el) return;
+  const chars = '!<>-_/[]{}=+*^?#01';
+  const final = String(finalText || '');
+  const start = performance.now();
+  function frame(now) {
+    const t = Math.min(1, (now - start) / duration);
+    let out = '';
+    for (let i = 0; i < final.length; i++) {
+      const ready = i / final.length <= t;
+      out += ready ? final[i] : chars[(Math.random() * chars.length) | 0];
+    }
+    el.textContent = out;
+    if (t < 1) requestAnimationFrame(frame);
+    else el.textContent = final;
+  }
+  el.classList.add('scramble-text');
+  requestAnimationFrame(frame);
+}
 
 // ============================================================
 // i18n — auto-detect browser language, fall back to English
@@ -1973,8 +2234,13 @@ function renderStations(stations) {
       <div class="rp-st-play">▶</div>
     </div>
   `).join('');
-  wrap.querySelectorAll('.rp-station').forEach(el => {
+  wrap.querySelectorAll('.rp-station').forEach((el, i) => {
     el.addEventListener('click', () => playStation(el.dataset.url, el));
+    const nameEl = el.querySelector('.rp-st-name');
+    if (nameEl) {
+      const final = nameEl.textContent;
+      setTimeout(() => scrambleText(nameEl, final, 350 + i * 20), i * 30);
+    }
   });
 }
 function playStation(url, el) {
@@ -2001,7 +2267,7 @@ function playStation(url, el) {
 }
 async function openRegionPanel(countryName, isoCode) {
   const panel = $('region-panel');
-  $('rp-name').textContent = countryName;
+  scrambleText($('rp-name'), countryName, 450);
   panel.dataset.iso = isoCode || '';
   panel.classList.add('show');
   $('rp-content').innerHTML = '<div style="color:var(--dim);padding:14px 4px">로딩…</div>';
@@ -2387,6 +2653,11 @@ async function fetchGlobal() {
       }
     }
     $c.innerHTML = blocks.join('') || '<div class="news-empty">결과 없음</div>';
+    // Cinematic scramble on titles
+    $c.querySelectorAll('.nc-title').forEach((el, i) => {
+      const final = el.textContent;
+      setTimeout(() => scrambleText(el, final, 400), i * 25);
+    });
   } catch (e) {
     $c.innerHTML = '<div class="news-empty">에러: ' + String(e).slice(0, 80) + '</div>';
   }
@@ -2417,6 +2688,10 @@ async function fetchHN() {
           </div>
         </a>`;
     }).join('');
+    $c.querySelectorAll('.nc-title').forEach((el, i) => {
+      const final = el.textContent;
+      setTimeout(() => scrambleText(el, final, 400), i * 25);
+    });
   } catch (e) {
     $c.innerHTML = '<div class="news-empty">에러: ' + String(e).slice(0, 80) + '</div>';
   }
