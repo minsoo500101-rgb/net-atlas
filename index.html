@@ -120,6 +120,16 @@
     pointer-events: none;
   }
   .ticker b { color: var(--text); margin-right: 4px; font-weight: 500; font-size: 13px; }
+  .speed-btn {
+    cursor: pointer; pointer-events: auto;
+    background: rgba(255,224,102,0.1);
+    color: #ffe066;
+    padding: 1px 7px; border-radius: 3px;
+    border: 1px solid rgba(255,224,102,0.3);
+    font-size: 10px; letter-spacing: 0.5px;
+    transition: background .15s;
+  }
+  .speed-btn:hover { background: rgba(255,224,102,0.2); }
 
   .streams-bar { display: flex; gap: 6px; margin-top: 10px; pointer-events: auto; flex-wrap: wrap; }
   .stream-toggle {
@@ -205,6 +215,7 @@
     <span><b id="t-bsky">0</b>포스트/분</span>
     <span><b id="t-eonet">0</b>재해</span>
     <span><b id="t-iss">—</b></span>
+    <span class="speed-btn" id="speed-btn" title="time multiplier">60×</span>
   </div>
 </div>
 
@@ -1221,14 +1232,13 @@ async function loadTLE(sat) {
     satRecs.set(sat.id, satrec);
   } catch {}
 }
-function propagateSat(satrec) {
-  const now = new Date();
-  const pv = satellite.propagate(satrec, now);
+function propagateSatAt(satrec, date) {
+  const pv = satellite.propagate(satrec, date);
   if (!pv || !pv.position) return null;
-  const gmst = satellite.gstime(now);
+  const gmst = satellite.gstime(date);
   const geo = satellite.eciToGeodetic(pv.position, gmst);
   const lat = satellite.degreesLat(geo.latitude);
-  let lon = satellite.degreesLong(geo.longitude);
+  const lon = satellite.degreesLong(geo.longitude);
   const altitude = geo.height; // km
   let speed = null;
   if (pv.velocity) {
@@ -1237,26 +1247,121 @@ function propagateSat(satrec) {
   }
   return { lat, lon, speed, altitude };
 }
-async function fetchSats() {
-  // First call: load TLEs for any sat we don't have yet (one-time per sat)
+
+// --- Time multiplier for visualization ---
+const SPEED_STEPS = [1, 10, 60, 300];
+let speedIdx = 2; // 60×
+let satSimEpoch = Date.now(); // accumulated simulated wall-clock "now"
+let satWallEpoch = Date.now();
+function currentSimTime() {
+  return new Date(satSimEpoch + (Date.now() - satWallEpoch) * SPEED_STEPS[speedIdx]);
+}
+function setSpeedIdx(i) {
+  // Lock current sim time before changing rate so we don't jump
+  satSimEpoch = currentSimTime().getTime();
+  satWallEpoch = Date.now();
+  speedIdx = (i + SPEED_STEPS.length) % SPEED_STEPS.length;
+  const btn = $('speed-btn');
+  if (btn) btn.textContent = SPEED_STEPS[speedIdx] + '×';
+}
+$('speed-btn').addEventListener('click', () => setSpeedIdx(speedIdx + 1));
+
+// --- 30Hz setInterval-driven satellite loop (works in both foreground and background tabs) ---
+let satTickHandle = null;
+let issTickerLast = 0;
+const lastTrailWall = new Map();
+
+async function satLoop() {
+  // Load TLEs lazily once
   for (const sat of SATELLITES) {
     if (!satRecs.has(sat.id)) await loadTLE(sat);
   }
-  // Then propagate every tick (no network)
-  for (const sat of SATELLITES) {
-    const rec = satRecs.get(sat.id);
-    if (!rec) continue;
-    const pos = propagateSat(rec);
-    if (!pos) continue;
-    sat.latest = pos;
-    updateSatPosition(sat, pos.lat, pos.lon);
-    if (sat.id === '25544' && pos.speed) {
-      const v = Math.round(pos.speed);
-      const where = (pos.lat > 0 ? 'N' : 'S') + Math.abs(pos.lat).toFixed(0) + ' ' +
-                    (pos.lon > 0 ? 'E' : 'W') + Math.abs(pos.lon).toFixed(0);
-      $('t-iss').textContent = `ISS ${v.toLocaleString()}km/h @${where}`;
+  const tick = () => {
+    if (!satTickHandle) return;
+    const simNow = currentSimTime();
+    for (const sat of SATELLITES) {
+      const rec = satRecs.get(sat.id);
+      if (!rec) continue;
+      const pos = propagateSatAt(rec, simNow);
+      if (!pos) continue;
+      sat.latest = pos;
+      placeSat(sat, pos);
     }
+    const now = performance.now();
+    if (now - issTickerLast > 100) {
+      issTickerLast = now;
+      const iss = SATELLITES.find(s => s.id === '25544');
+      if (iss && iss.latest) {
+        const p = iss.latest;
+        const v = Math.round(p.speed || 0);
+        const where = (p.lat > 0 ? 'N' : 'S') + Math.abs(p.lat).toFixed(0) + ' ' +
+                      (p.lon > 0 ? 'E' : 'W') + Math.abs(p.lon).toFixed(0);
+        $('t-iss').textContent = `ISS ${v.toLocaleString()}km/h @${where}`;
+      }
+    }
+  };
+  satTickHandle = setInterval(tick, 33); // ~30 fps
+}
+
+function placeSat(sat, pos) {
+  const projected = projection([pos.lon, pos.lat]);
+  if (!projected) return;
+  const [x, y] = projected;
+  let g = satMarkers.get(sat.id);
+  if (!g) {
+    g = gDots.append('g').attr('class', 'sat-group');
+    g.append('circle').attr('r', 8).attr('fill', 'none')
+      .attr('stroke', sat.color).attr('stroke-width', 1).attr('opacity', 0.45);
+    g.append('circle').attr('r', 3.5).attr('fill', sat.color)
+      .style('filter', `drop-shadow(0 0 6px ${sat.color})`);
+    g.append('text').attr('font-size', 9).attr('fill', sat.color)
+      .attr('opacity', 0.9).attr('x', 8).attr('y', -6).text(sat.name);
+    attachTip(g, () => {
+      const p = sat.latest || {};
+      return `
+        <div class="tt-title">${sat.name} — ${t(sat.name)}</div>
+        <div class="tt-sub">
+          ${p.altitude != null ? `<div class="tt-row"><span>${t('Altitude')}</span><span>${p.altitude.toFixed(0)} km</span></div>` : ''}
+          ${p.speed != null ? `<div class="tt-row"><span>${t('Velocity')}</span><span>${Math.round(p.speed).toLocaleString()} km/h</span></div>` : ''}
+          ${p.lat != null ? `<div class="tt-row"><span>${t('Position')}</span><span>${Math.abs(p.lat).toFixed(2)}°${p.lat>=0?'N':'S'}, ${Math.abs(p.lon).toFixed(2)}°${p.lon>=0?'E':'W'}</span></div>` : ''}
+        </div>
+      `;
+    });
+    satMarkers.set(sat.id, g);
+    satTrails.set(sat.id, []);
   }
+  // Update trail at most every 80ms wall time
+  const wallNow = performance.now();
+  const last = lastTrailWall.get(sat.id) || 0;
+  if (wallNow - last > 80) {
+    lastTrailWall.set(sat.id, wallNow);
+    const trail = satTrails.get(sat.id);
+    trail.push([x, y]);
+    if (trail.length > 220) trail.shift();
+    let trailPath = gDots.select(`path.sat-trail-${sat.id}`);
+    if (trailPath.empty()) {
+      trailPath = gDots.insert('path', '.sat-group').attr('class', `sat-trail-${sat.id}`)
+        .attr('fill', 'none').attr('stroke', sat.color).attr('stroke-width', 1).attr('opacity', 0.35);
+    }
+    trailPath.attr('d', buildTrailPath(trail));
+  }
+  // Direct transform update — smooth via rAF, no d3 transition
+  g.attr('transform', `translate(${x},${y})`);
+}
+
+// Break the trail when it crosses ~half-screen jump (antimeridian wrap)
+function buildTrailPath(points) {
+  if (points.length < 2) return '';
+  let d = '', prev = null;
+  for (const p of points) {
+    if (prev && Math.abs(p[0] - prev[0]) > width * 0.5) {
+      d += ' M' + p[0] + ',' + p[1];
+    } else {
+      d += (d ? ' L' : 'M') + p[0] + ',' + p[1];
+    }
+    prev = p;
+  }
+  return d;
 }
 function updateSatPosition(sat, lat, lon) {
   const projected = projection([lon, lat]);
@@ -1299,15 +1404,17 @@ function updateSatPosition(sat, lat, lon) {
     .attr('transform', `translate(${x},${y})`);
 }
 function startSats() {
-  if (satsTimer) return;
-  satsTimer = setInterval(fetchSats, 2000);
-  fetchSats();
+  if (satTickHandle) return;
+  satWallEpoch = Date.now();
+  satSimEpoch = Date.now();
+  satLoop();
 }
 function stopSats() {
-  if (satsTimer) { clearInterval(satsTimer); satsTimer = null; }
+  if (satTickHandle) { clearInterval(satTickHandle); satTickHandle = null; }
   satMarkers.forEach(g => g.remove());
   satMarkers.clear();
   satTrails.clear();
+  lastTrailWall.clear();
   gDots.selectAll('[class^="sat-trail-"]').remove();
   $('t-iss').textContent = '—';
 }
