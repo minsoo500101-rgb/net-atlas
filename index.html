@@ -156,6 +156,8 @@
   .stream-toggle.active .s-eq { box-shadow: 0 0 6px #ff7a5c; animation: streampulse 1.4s infinite; }
   .stream-toggle .s-eonet { background: #ff9966; }
   .stream-toggle.active .s-eonet { box-shadow: 0 0 6px #ff9966; animation: streampulse 1.4s infinite; }
+  .stream-toggle .s-aurora { background: #88ffd4; }
+  .stream-toggle.active .s-aurora { box-shadow: 0 0 6px #88ffd4; animation: streampulse 1.4s infinite; }
   .stream-toggle .s-iss { background: #ffe066; }
   .stream-toggle.active .s-iss { box-shadow: 0 0 6px #ffe066; animation: streampulse 1.4s infinite; }
   @keyframes streampulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
@@ -208,6 +210,7 @@
     <button class="stream-toggle active" data-stream="bsky"><span class="dot s-bsky"></span>Bluesky <span id="stream-bsky-count">0</span></button>
     <button class="stream-toggle active" data-stream="eq"><span class="dot s-eq"></span>Earthquakes <span id="stream-eq-count">0</span></button>
     <button class="stream-toggle active" data-stream="eonet"><span class="dot s-eonet"></span>Disasters <span id="stream-eonet-count">0</span></button>
+    <button class="stream-toggle active" data-stream="aurora"><span class="dot s-aurora"></span>Aurora</button>
     <button class="stream-toggle active" data-stream="sats"><span class="dot s-iss"></span>Satellites</button>
   </div>
   <div class="ticker" id="ticker">
@@ -291,6 +294,9 @@ const I18N = {
     Tiangong: 'Tiangong (Chinese Space Station)',
     Hubble: 'Hubble Space Telescope',
     Starlink: 'Starlink satellite',
+    'GOES-16': 'GOES-16 (geostationary weather satellite)',
+    'Sentinel-2A': 'Sentinel-2A (Earth observation satellite)',
+    'NOAA-19': 'NOAA-19 (polar weather satellite)',
     Started: 'Started',
   },
   ko: {
@@ -317,6 +323,9 @@ const I18N = {
     Tiangong: '톈궁 우주정거장',
     Hubble: '허블 우주망원경',
     Starlink: '스타링크 위성',
+    'GOES-16': 'GOES-16 (정지궤도 기상위성)',
+    'Sentinel-2A': 'Sentinel-2A (지구 관측 위성)',
+    'NOAA-19': 'NOAA-19 (극궤도 기상위성)',
     Started: '시작',
   },
   ja: {
@@ -646,6 +655,8 @@ const path = d3.geoPath(projection);
 const gSphere    = svg.append('g');
 const gGraticule = svg.append('g');
 const gMap       = svg.append('g');
+const gAurora    = svg.append('g').attr('class', 'aurora-layer'); // above land, below pulses
+const gSun       = svg.append('g').attr('class', 'sun-layer');
 const gArcs      = svg.append('g');
 const gDots      = svg.append('g');
 const gLabels    = svg.append('g');
@@ -1051,7 +1062,7 @@ let satsTimer = null, satMarkers = new Map(), satTrails = new Map();
 
 const streamSkip = new Set([
   'stream.wikimedia.org', 'jetstream2.us-east.bsky.network', 'earthquake.usgs.gov',
-  'eonet.gsfc.nasa.gov', 'celestrak.org',
+  'eonet.gsfc.nasa.gov', 'celestrak.org', 'services.swpc.noaa.gov',
 ]);
 streamSkip.forEach(h => skipHosts.add(h));
 
@@ -1212,10 +1223,12 @@ function stopEonet() {
 
 // --- Satellites: TLE-based orbit propagation (works for any satellite) ---
 const SATELLITES = [
-  { id: '25544', name: 'ISS',      color: '#ffe066' },
-  { id: '48274', name: 'Tiangong', color: '#ff82d8' },
-  { id: '20580', name: 'Hubble',   color: '#82ffe0' },
-  { id: '44713', name: 'Starlink', color: '#a8d8ff' },
+  { id: '25544', name: 'ISS',        color: '#ffe066' },
+  { id: '48274', name: 'Tiangong',   color: '#ff82d8' },
+  { id: '20580', name: 'Hubble',     color: '#82ffe0' },
+  { id: '41866', name: 'GOES-16',    color: '#c47cff' }, // geostationary over Americas
+  { id: '40697', name: 'Sentinel-2A',color: '#66ff99' }, // polar Earth-observation
+  { id: '33591', name: 'NOAA-19',    color: '#f0d0d0' }, // polar weather
 ];
 const satRecs = new Map(); // norad -> satellite.satrec
 async function loadTLE(sat) {
@@ -1473,13 +1486,108 @@ function stopEq() {
   if (eqTimer) { clearInterval(eqTimer); eqTimer = null; }
 }
 
+// --- NOAA Aurora oval (where polar lights are visible right now) ---
+let auroraTimer = null;
+async function fetchAurora() {
+  try {
+    const r = await origFetch('https://services.swpc.noaa.gov/json/ovation_aurora_latest.json');
+    if (!r.ok) return;
+    const j = await r.json();
+    drawAurora(j.coordinates || []);
+  } catch {}
+}
+function drawAurora(coords) {
+  gAurora.selectAll('*').remove();
+  // coords: [[lon(0-360), lat(-90..90), intensity(0-100)], ...]
+  // Sample every other point and filter by intensity
+  for (let i = 0; i < coords.length; i += 2) {
+    const [lon0, lat, intensity] = coords[i];
+    if (intensity < 3) continue;
+    // Convert 0–360 to -180..180
+    const lon = lon0 > 180 ? lon0 - 360 : lon0;
+    const projected = projection([lon, lat]);
+    if (!projected) continue;
+    const opacity = Math.min(intensity / 80, 0.55);
+    const r = 3 + Math.min(intensity / 30, 2.5);
+    // green for north, red-pink for south is conventional, but use both green for unity
+    gAurora.append('circle')
+      .attr('cx', projected[0]).attr('cy', projected[1])
+      .attr('r', r)
+      .attr('fill', '#88ffd4')
+      .attr('fill-opacity', opacity)
+      .style('filter', 'blur(1.5px)');
+  }
+}
+function startAurora() {
+  if (auroraTimer) return;
+  fetchAurora();
+  auroraTimer = setInterval(fetchAurora, 5 * 60 * 1000);
+}
+function stopAurora() {
+  if (auroraTimer) { clearInterval(auroraTimer); auroraTimer = null; }
+  gAurora.selectAll('*').remove();
+}
+
+// --- Sub-solar point: where the sun is directly overhead right now ---
+// Auto-running, no toggle. Updates every 5 seconds.
+let sunMarker = null;
+let sunInterval = null;
+function sunPosition(date) {
+  const d = date || new Date();
+  const N = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
+  const declination = 23.44 * Math.cos((2 * Math.PI / 365) * (N + 10)); // degrees, +/-23.44
+  // Approximate equation-of-time correction in minutes
+  const B = 2 * Math.PI * (N - 81) / 365;
+  const eot = 9.87 * Math.sin(2*B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B); // minutes
+  const hour = d.getUTCHours() + d.getUTCMinutes()/60 + d.getUTCSeconds()/3600;
+  let lon = -15 * (hour - 12) - eot * 0.25;
+  // Wrap to -180..180
+  lon = ((lon + 180) % 360 + 360) % 360 - 180;
+  return { lat: -declination, lon }; // declination sign: at northern summer (N≈170) declination is +23, sun overhead at +23
+}
+function placeSun() {
+  // Sun's overhead point: latitude = declination (north positive)
+  const d = new Date();
+  const N = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
+  const decl = 23.44 * Math.sin((2 * Math.PI / 365) * (N - 81)); // +N summer solstice ~+23.44
+  const hour = d.getUTCHours() + d.getUTCMinutes()/60 + d.getUTCSeconds()/3600;
+  const B = 2 * Math.PI * (N - 81) / 365;
+  const eot = 9.87 * Math.sin(2*B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+  let lon = -15 * (hour - 12) - eot * 0.25;
+  lon = ((lon + 180) % 360 + 360) % 360 - 180;
+  const projected = projection([lon, decl]);
+  if (!projected) return;
+  if (!sunMarker) {
+    sunMarker = gSun.append('g').attr('class', 'sun-marker');
+    sunMarker.append('circle').attr('r', 22).attr('fill', '#fff2a8').attr('fill-opacity', 0.08);
+    sunMarker.append('circle').attr('r', 12).attr('fill', '#fff2a8').attr('fill-opacity', 0.18);
+    sunMarker.append('text').attr('font-size', 18).attr('text-anchor', 'middle')
+      .attr('dy', 6).text('☀').attr('fill', '#fff2a8')
+      .style('filter', 'drop-shadow(0 0 8px #fff2a8)');
+    attachTip(sunMarker, () => `
+      <div class="tt-title">☀ ${LANG === 'ko' ? '태양 (천정)' : LANG === 'ja' ? '太陽 (天頂)' : LANG === 'zh' ? '太阳 (天顶)' : 'Sun (subsolar point)'}</div>
+      <div class="tt-sub">
+        <div class="tt-row"><span>${t('Position')}</span><span>${Math.abs(decl).toFixed(2)}°${decl>=0?'N':'S'}, ${Math.abs(lon).toFixed(2)}°${lon>=0?'E':'W'}</span></div>
+        <div class="tt-row"><span>UTC</span><span>${d.toISOString().slice(11,16)}</span></div>
+      </div>
+    `);
+  }
+  sunMarker.attr('transform', `translate(${projected[0]},${projected[1]})`);
+}
+function startSun() {
+  if (sunInterval) return;
+  placeSun();
+  sunInterval = setInterval(placeSun, 5000);
+}
+
 // --- Stream toggle UI ---
 const streamHandlers = {
-  wiki:  { start: startWiki,  stop: stopWiki  },
-  bsky:  { start: startBsky,  stop: stopBsky  },
-  eq:    { start: startEq,    stop: stopEq    },
-  eonet: { start: startEonet, stop: stopEonet },
-  sats:  { start: startSats,  stop: stopSats  },
+  wiki:   { start: startWiki,   stop: stopWiki   },
+  bsky:   { start: startBsky,   stop: stopBsky   },
+  eq:     { start: startEq,     stop: stopEq     },
+  eonet:  { start: startEonet,  stop: stopEonet  },
+  aurora: { start: startAurora, stop: stopAurora },
+  sats:   { start: startSats,   stop: stopSats   },
 };
 document.querySelectorAll('.stream-toggle').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1495,7 +1603,9 @@ startWiki();
 startBsky();
 startEq();
 startEonet();
+startAurora();
 startSats();
+startSun(); // sub-solar point — auto-running, no toggle
 
 initYou();
 </script>
