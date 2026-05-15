@@ -160,6 +160,71 @@
   .stream-toggle.active .s-aurora { box-shadow: 0 0 6px #88ffd4; animation: streampulse 1.4s infinite; }
   .stream-toggle .s-iss { background: #ffe066; }
   .stream-toggle.active .s-iss { box-shadow: 0 0 6px #ffe066; animation: streampulse 1.4s infinite; }
+  .stream-toggle .s-pkt { background: #82ffd8; }
+  .stream-toggle.active .s-pkt { box-shadow: 0 0 6px #82ffd8; animation: streampulse 1.4s infinite; }
+
+  /* Region panel */
+  .region-panel {
+    position: fixed; right: -360px; top: 0; bottom: 0;
+    width: 340px;
+    background: rgba(10,14,26,0.96);
+    border-left: 1px solid var(--land-stroke);
+    padding: 18px 16px 14px;
+    z-index: 50;
+    display: flex; flex-direction: column;
+    backdrop-filter: blur(12px);
+    transition: right 0.35s cubic-bezier(.4,.0,.2,1);
+    box-shadow: -10px 0 30px rgba(0,0,0,0.4);
+  }
+  .region-panel.show { right: 0; }
+  .rp-close {
+    position: absolute; top: 8px; right: 12px;
+    background: none; border: none; color: var(--dim);
+    font-size: 24px; cursor: pointer; padding: 0;
+    width: 28px; height: 28px; line-height: 1;
+  }
+  .rp-close:hover { color: var(--text); }
+  .region-panel h3 {
+    margin: 0 0 14px; font-size: 14px; color: var(--accent);
+    letter-spacing: 1px; padding-right: 28px;
+  }
+  .rp-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .rp-tab {
+    background: transparent; color: var(--dim);
+    border: 1px solid var(--land-stroke); padding: 5px 11px;
+    border-radius: 4px; cursor: pointer;
+    font-family: inherit; font-size: 11px;
+    transition: all 0.15s;
+  }
+  .rp-tab:hover { color: var(--text); }
+  .rp-tab.active {
+    background: rgba(124,243,195,0.1); color: var(--accent);
+    border-color: rgba(124,243,195,0.4);
+  }
+  .rp-content { flex: 1; overflow-y: auto; font-size: 11px; }
+  .rp-station {
+    display: grid; grid-template-columns: 1fr auto; gap: 8px;
+    padding: 8px 10px; border: 1px solid var(--land-stroke);
+    border-radius: 4px; margin-bottom: 5px;
+    cursor: pointer; align-items: center;
+    transition: border-color 0.15s;
+  }
+  .rp-station:hover { border-color: var(--accent); }
+  .rp-station.playing { border-color: var(--accent); background: rgba(124,243,195,0.08); }
+  .rp-st-name { color: var(--text); font-size: 11px; margin-bottom: 2px; word-break: break-word; }
+  .rp-st-meta { color: var(--dim); font-size: 9px; letter-spacing: 0.5px; }
+  .rp-st-play { color: var(--accent); font-size: 13px; padding: 0 4px; }
+  .rp-tv-link {
+    display: block; padding: 10px 12px; margin-bottom: 5px;
+    border: 1px solid var(--land-stroke); border-radius: 4px;
+    color: var(--text); text-decoration: none; font-size: 11px;
+    transition: all 0.15s;
+  }
+  .rp-tv-link:hover { border-color: var(--accent); color: var(--accent); }
+  #rp-player { display: none; }
+
+  .country-clickable { cursor: pointer; transition: fill 0.15s; }
+  .country-clickable:hover { fill: #1f2a44; }
   @keyframes streampulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 
   ::-webkit-scrollbar { width: 4px; }
@@ -200,6 +265,16 @@
 <body>
 <svg id="map"></svg>
 <div class="tooltip" id="tooltip"></div>
+<aside class="region-panel" id="region-panel">
+  <button class="rp-close" id="rp-close" title="close">×</button>
+  <h3 id="rp-name">—</h3>
+  <div class="rp-tabs">
+    <button class="rp-tab active" data-rt="radio">📻 Radio</button>
+    <button class="rp-tab" data-rt="tv">📺 TV</button>
+  </div>
+  <div class="rp-content" id="rp-content"></div>
+</aside>
+<audio id="rp-player" autoplay></audio>
 
 <div class="header">
   <h1>NET ATLAS</h1>
@@ -212,6 +287,7 @@
     <button class="stream-toggle active" data-stream="eonet"><span class="dot s-eonet"></span>Disasters <span id="stream-eonet-count">0</span></button>
     <button class="stream-toggle active" data-stream="aurora"><span class="dot s-aurora"></span>Aurora</button>
     <button class="stream-toggle active" data-stream="sats"><span class="dot s-iss"></span>Satellites</button>
+    <button class="stream-toggle active" data-stream="packets"><span class="dot s-pkt"></span>Packets</button>
   </div>
   <div class="ticker" id="ticker">
     <span><b id="t-wiki">0</b>편집/분</span>
@@ -658,6 +734,7 @@ const gMap       = svg.append('g');
 const gAurora    = svg.append('g').attr('class', 'aurora-layer'); // above land, below pulses
 const gSun       = svg.append('g').attr('class', 'sun-layer');
 const gArcs      = svg.append('g');
+const gPackets   = svg.append('g').attr('class', 'packets-layer');
 const gDots      = svg.append('g');
 const gLabels    = svg.append('g');
 
@@ -685,7 +762,16 @@ gGraticule.append('path').datum(graticule())
       .attr('d', path)
       .attr('fill', '#131a2e')
       .attr('stroke', '#233052')
-      .attr('stroke-width', 0.4);
+      .attr('stroke-width', 0.4)
+      .attr('class', 'country-clickable')
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        const name = d.properties && d.properties.name;
+        if (!name) return;
+        const iso = ISO_N2A[d.id] || '';
+        zoomToFeature(d);
+        openRegionPanel(name, iso);
+      });
   } catch (e) {
     console.error('map load failed', e);
   }
@@ -1598,6 +1684,333 @@ document.querySelectorAll('.stream-toggle').forEach(btn => {
   });
 });
 
+// ============================================================
+// ZOOM — click country to zoom in, X to zoom out
+// ============================================================
+const zoomBehavior = d3.zoom()
+  .scaleExtent([1, 12])
+  .on('zoom', (e) => {
+    const k = e.transform.k;
+    const tr = e.transform.toString();
+    svg.selectAll(':scope > g').attr('transform', tr);
+    // counter-scale for readability
+    gDots.selectAll('text').attr('font-size', 14 / k);
+    gLabels.selectAll('text').attr('font-size', 9 / k);
+    gMap.selectAll('path').attr('stroke-width', 0.4 / k);
+    gGraticule.selectAll('path').attr('stroke-width', 0.5 / k);
+    svg.selectAll('g.sat-group circle').each(function(_, i){
+      const c = d3.select(this);
+      // keep dot/ring base size visually consistent
+      if (i === 0) c.attr('r', 8 / k);
+      else if (i === 1) c.attr('r', 3.5 / k);
+    });
+  });
+svg.call(zoomBehavior).on('dblclick.zoom', null);
+
+function zoomToFeature(d) {
+  const pathFn = d3.geoPath(projection);
+  const bounds = pathFn.bounds(d);
+  const dx = bounds[1][0] - bounds[0][0];
+  const dy = bounds[1][1] - bounds[0][1];
+  const cx = (bounds[0][0] + bounds[1][0]) / 2;
+  const cy = (bounds[0][1] + bounds[1][1]) / 2;
+  const k = Math.max(2, Math.min(8, 0.65 / Math.max(dx / width, dy / height)));
+  const panelW = 340;
+  const tx = (width - panelW) / 2 - k * cx;
+  const ty = height / 2 - k * cy;
+  animateZoom(d3.zoomIdentity.translate(tx, ty).scale(k), 700);
+}
+function zoomReset() {
+  animateZoom(d3.zoomIdentity, 500);
+}
+function animateZoom(target, dur) {
+  // Manual interpolation using setTimeout — works in hidden tabs too.
+  const start = d3.zoomTransform(svg.node());
+  const t0 = Date.now();
+  function step() {
+    const u = Math.min(1, (Date.now() - t0) / dur);
+    const e = 1 - Math.pow(1 - u, 3); // easeCubicOut
+    const k = start.k + (target.k - start.k) * e;
+    const x = start.x + (target.x - start.x) * e;
+    const y = start.y + (target.y - start.y) * e;
+    svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(x, y).scale(k));
+    if (u < 1) setTimeout(step, 16);
+  }
+  step();
+}
+
+// ============================================================
+// REGION PANEL: Radio (radio-browser.info) + TV (curated links)
+// ============================================================
+skipHosts.add('all.api.radio-browser.info');
+
+// world-atlas-110m country numeric ISO → alpha-2 (subset for radio lookup)
+const ISO_N2A = {
+  '004':'AF','008':'AL','012':'DZ','024':'AO','032':'AR','036':'AU','040':'AT','050':'BD',
+  '051':'AM','056':'BE','068':'BO','070':'BA','072':'BW','076':'BR','100':'BG','104':'MM',
+  '108':'BI','116':'KH','120':'CM','124':'CA','140':'CF','148':'TD','152':'CL','156':'CN',
+  '170':'CO','178':'CG','180':'CD','188':'CR','191':'HR','192':'CU','196':'CY','203':'CZ',
+  '208':'DK','214':'DO','218':'EC','222':'SV','226':'GQ','231':'ET','233':'EE','242':'FJ',
+  '246':'FI','250':'FR','266':'GA','268':'GE','276':'DE','288':'GH','300':'GR','320':'GT',
+  '324':'GN','328':'GY','332':'HT','340':'HN','344':'HK','348':'HU','352':'IS','356':'IN',
+  '360':'ID','364':'IR','368':'IQ','372':'IE','376':'IL','380':'IT','384':'CI','388':'JM',
+  '392':'JP','398':'KZ','400':'JO','404':'KE','408':'KP','410':'KR','414':'KW','417':'KG',
+  '418':'LA','422':'LB','426':'LS','428':'LV','430':'LR','434':'LY','440':'LT','442':'LU',
+  '450':'MG','454':'MW','458':'MY','466':'ML','478':'MR','484':'MX','496':'MN','498':'MD',
+  '499':'ME','504':'MA','508':'MZ','512':'OM','516':'NA','524':'NP','528':'NL','548':'VU',
+  '554':'NZ','558':'NI','562':'NE','566':'NG','578':'NO','586':'PK','591':'PA','598':'PG',
+  '600':'PY','604':'PE','608':'PH','616':'PL','620':'PT','624':'GW','626':'TL','630':'PR',
+  '634':'QA','642':'RO','643':'RU','646':'RW','682':'SA','686':'SN','688':'RS','694':'SL',
+  '702':'SG','703':'SK','704':'VN','705':'SI','706':'SO','710':'ZA','716':'ZW','724':'ES',
+  '728':'SS','729':'SD','740':'SR','752':'SE','756':'CH','760':'SY','762':'TJ','764':'TH',
+  '768':'TG','780':'TT','784':'AE','788':'TN','792':'TR','795':'TM','800':'UG','804':'UA',
+  '807':'MK','818':'EG','826':'GB','834':'TZ','840':'US','854':'BF','858':'UY','860':'UZ',
+  '862':'VE','882':'WS','887':'YE','894':'ZM',
+};
+
+const TV_LINKS = {
+  'South Korea': [
+    { name: '🔴 YTN Live', url: 'https://www.youtube.com/watch?v=YwOUEavqYi8' },
+    { name: '🔴 KBS News Live', url: 'https://www.youtube.com/@KBSNews' },
+    { name: '🔴 SBS News', url: 'https://www.youtube.com/@SBSnews8' },
+    { name: '🔴 MBC News', url: 'https://www.youtube.com/@MBCnews' },
+  ],
+  'United States of America': [
+    { name: '🔴 ABC News Live', url: 'https://www.youtube.com/watch?v=w_Ma8oQLmSM' },
+    { name: '🔴 NBC News Now', url: 'https://www.youtube.com/@NBCNews' },
+    { name: '🔴 PBS NewsHour', url: 'https://www.pbs.org/newshour/live' },
+    { name: '🔴 CBS News', url: 'https://www.cbsnews.com/live/' },
+  ],
+  'United Kingdom': [
+    { name: '🔴 BBC News', url: 'https://www.bbc.com/news/live' },
+    { name: '🔴 Sky News', url: 'https://www.youtube.com/watch?v=9Auq9mYxFEE' },
+    { name: '🔴 Channel 4 News', url: 'https://www.youtube.com/@Channel4News' },
+  ],
+  'Japan': [
+    { name: '🔴 NHK World Live', url: 'https://www3.nhk.or.jp/nhkworld/en/live/' },
+    { name: '🔴 ANN News', url: 'https://www.youtube.com/@ANNnewsCH' },
+    { name: '🔴 TBS News', url: 'https://www.youtube.com/@tbsnewsdig' },
+  ],
+  'France': [
+    { name: '🔴 France 24 EN', url: 'https://www.france24.com/en/live/' },
+    { name: '🔴 France 24 FR', url: 'https://www.france24.com/fr/direct/' },
+    { name: '🔴 BFM TV', url: 'https://www.youtube.com/@BFMTV' },
+  ],
+  'Germany': [
+    { name: '🔴 DW News', url: 'https://www.dw.com/en/live-tv/channel-english' },
+    { name: '🔴 Tagesschau', url: 'https://www.tagesschau.de/multimedia/livestreams/' },
+  ],
+  'Qatar':       [{ name: '🔴 Al Jazeera English', url: 'https://www.aljazeera.com/live' }],
+  'Russia':      [{ name: '🔴 RT', url: 'https://www.rt.com/on-air/' }],
+  'China':       [{ name: '🔴 CGTN', url: 'https://www.cgtn.com/livenews' }],
+  'Australia':   [{ name: '🔴 ABC News (AU)', url: 'https://iview.abc.net.au/show/abc-news' }],
+  'Italy':       [{ name: '🔴 Euronews IT', url: 'https://it.euronews.com/live' }, { name: '🔴 Rai News 24', url: 'https://www.rainews.it/dirette/rainews24' }],
+  'Spain':       [{ name: '🔴 RTVE 24h', url: 'https://www.rtve.es/play/videos/directo/canal-24h/' }],
+  'Brazil':      [{ name: '🔴 GloboNews', url: 'https://globoplay.globo.com/globonews/' }],
+  'India':       [{ name: '🔴 NDTV', url: 'https://www.ndtv.com/video/live/' }, { name: '🔴 Times Now', url: 'https://www.youtube.com/@TimesNow' }],
+  'Turkey':      [{ name: '🔴 TRT World', url: 'https://www.youtube.com/@trtworld' }],
+  'Canada':      [{ name: '🔴 CBC News', url: 'https://www.cbc.ca/player/news/live' }, { name: '🔴 CTV News', url: 'https://www.ctvnews.ca/video/live' }],
+  'Mexico':      [{ name: '🔴 Milenio', url: 'https://www.milenio.com/television/en-vivo-canal-milenio' }],
+  'Argentina':   [{ name: '🔴 TN', url: 'https://tn.com.ar/vivo' }],
+  'Singapore':   [{ name: '🔴 CNA', url: 'https://www.channelnewsasia.com/watch/cna-live' }],
+  'Taiwan':      [{ name: '🔴 TaiwanPlus', url: 'https://www.taiwanplus.com/' }],
+  'Indonesia':   [{ name: '🔴 KompasTV', url: 'https://www.youtube.com/@KompasTV' }],
+  'Philippines': [{ name: '🔴 ABS-CBN News', url: 'https://news.abs-cbn.com/live' }],
+  'Vietnam':     [{ name: '🔴 VTV4', url: 'https://vtv.vn/truyen-hinh-truc-tuyen/vtv4.htm' }],
+  'Thailand':    [{ name: '🔴 Thai PBS World', url: 'https://www.thaipbsworld.com/live/' }],
+  'Egypt':       [{ name: '🔴 Al Arabiya', url: 'https://www.alarabiya.net/live' }],
+  'Israel':      [{ name: '🔴 i24NEWS', url: 'https://www.i24news.tv/en/tv/live' }],
+  'South Africa':[{ name: '🔴 eNCA', url: 'https://www.enca.com/live' }],
+  'Netherlands': [{ name: '🔴 NOS', url: 'https://nos.nl/livestream' }],
+  'Sweden':      [{ name: '🔴 SVT Nyheter', url: 'https://www.svt.se/nyheter/live/' }],
+  'Norway':      [{ name: '🔴 NRK', url: 'https://tv.nrk.no/direkte/nrk1' }],
+  'Poland':      [{ name: '🔴 TVP Info', url: 'https://www.tvp.info/' }],
+  'Ukraine':     [{ name: '🔴 Suspilne Live', url: 'https://suspilne.media/' }],
+};
+
+const rpPlayer = $('rp-player');
+let currentStationUrl = null;
+
+async function loadStations(countryName, isoCode) {
+  // Prefer ISO alpha-2 lookup — radio-browser's country names don't always match world-atlas
+  if (isoCode) {
+    try {
+      const r = await origFetch(`https://all.api.radio-browser.info/json/stations/bycountrycodeexact/${isoCode}?limit=30&order=clickcount&reverse=true&hidebroken=true`);
+      if (r.ok) {
+        const j = await r.json();
+        if (j.length) return j;
+      }
+    } catch {}
+  }
+  // Fallback: name-based search
+  try {
+    const r = await origFetch(`https://all.api.radio-browser.info/json/stations/search?country=${encodeURIComponent(countryName)}&limit=30&order=clickcount&reverse=true&hidebroken=true`);
+    if (!r.ok) return [];
+    return await r.json();
+  } catch { return []; }
+}
+function renderStations(stations) {
+  const wrap = $('rp-content');
+  if (!stations || stations.length === 0) {
+    wrap.innerHTML = '<div style="color:var(--dim);padding:14px 4px">방송국을 찾지 못했습니다 / No stations found</div>';
+    return;
+  }
+  const seen = new Set();
+  const unique = stations.filter(s => {
+    const k = (s.name||'').trim().toLowerCase();
+    if (!k || seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+  wrap.innerHTML = unique.slice(0, 22).map(s => `
+    <div class="rp-station" data-url="${(s.url_resolved || s.url || '').replace(/"/g,'')}">
+      <div>
+        <div class="rp-st-name">${(s.name||'').replace(/[<>]/g,'').slice(0,42)}</div>
+        <div class="rp-st-meta">${(s.tags||'').slice(0,32) || (s.language||'') || ''}${s.bitrate ? ' · '+s.bitrate+'kbps' : ''}</div>
+      </div>
+      <div class="rp-st-play">▶</div>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.rp-station').forEach(el => {
+    el.addEventListener('click', () => playStation(el.dataset.url, el));
+  });
+}
+function playStation(url, el) {
+  if (!url) return;
+  if (currentStationUrl === url) {
+    rpPlayer.pause(); currentStationUrl = null;
+    el.classList.remove('playing');
+    el.querySelector('.rp-st-play').textContent = '▶';
+    return;
+  }
+  $('rp-content').querySelectorAll('.rp-station').forEach(s => {
+    s.classList.remove('playing');
+    s.querySelector('.rp-st-play').textContent = '▶';
+  });
+  rpPlayer.src = url;
+  rpPlayer.play().catch(() => {
+    // common failure: mixed content (HTTP stream on HTTPS page) or CORS audio
+    el.querySelector('.rp-st-play').textContent = '⚠';
+    setTimeout(() => { el.querySelector('.rp-st-play').textContent = '▶'; }, 1500);
+  });
+  el.classList.add('playing');
+  el.querySelector('.rp-st-play').textContent = '⏸';
+  currentStationUrl = url;
+}
+function renderTV(countryName) {
+  const wrap = $('rp-content');
+  const links = TV_LINKS[countryName] || [];
+  if (!links.length) {
+    wrap.innerHTML = '<div style="color:var(--dim);padding:14px 4px">사전 등록된 방송이 없습니다 / No preset TV channels</div>';
+    return;
+  }
+  wrap.innerHTML = links.map(l => `<a class="rp-tv-link" href="${l.url}" target="_blank" rel="noopener">${l.name} →</a>`).join('');
+}
+async function openRegionPanel(countryName, isoCode) {
+  const panel = $('region-panel');
+  $('rp-name').textContent = countryName;
+  panel.dataset.iso = isoCode || '';
+  panel.classList.add('show');
+  const activeTab = panel.querySelector('.rp-tab.active').dataset.rt;
+  if (activeTab === 'radio') {
+    $('rp-content').innerHTML = '<div style="color:var(--dim);padding:14px 4px">로딩…</div>';
+    const stations = await loadStations(countryName, isoCode);
+    renderStations(stations);
+  } else {
+    renderTV(countryName);
+  }
+}
+function closeRegionPanel() {
+  $('region-panel').classList.remove('show');
+  rpPlayer.pause(); currentStationUrl = null;
+  zoomReset();
+}
+$('rp-close').addEventListener('click', closeRegionPanel);
+$('region-panel').querySelectorAll('.rp-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $('region-panel').querySelectorAll('.rp-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const name = $('rp-name').textContent;
+    const iso = $('region-panel').dataset.iso || '';
+    if (tab.dataset.rt === 'radio') {
+      $('rp-content').innerHTML = '<div style="color:var(--dim);padding:14px 4px">로딩…</div>';
+      loadStations(name, iso).then(renderStations);
+    } else {
+      renderTV(name);
+    }
+  });
+});
+
+// ============================================================
+// PACKETS: animated flow between major Internet Exchange Points
+// ============================================================
+const IXPs = [
+  ['Ashburn',     39.04, -77.49, 10],
+  ['San Jose',    37.34,-121.89, 8],
+  ['Los Angeles', 34.05,-118.24, 6],
+  ['Miami',       25.76, -80.19, 5],
+  ['Toronto',     43.65, -79.38, 4],
+  ['Mexico City', 19.43, -99.13, 3],
+  ['São Paulo',  -23.55, -46.63, 4],
+  ['Frankfurt',   50.11,   8.68, 10],
+  ['Amsterdam',   52.37,   4.90, 8],
+  ['London',      51.51,  -0.13, 9],
+  ['Paris',       48.86,   2.35, 5],
+  ['Marseille',   43.30,   5.37, 4],
+  ['Madrid',      40.42,  -3.70, 3],
+  ['Stockholm',   59.33,  18.07, 3],
+  ['Moscow',      55.75,  37.62, 3],
+  ['Istanbul',    41.01,  28.98, 3],
+  ['Dubai',       25.20,  55.27, 4],
+  ['Cairo',       30.04,  31.24, 2],
+  ['Johannesburg',-26.20,  28.04, 3],
+  ['Mumbai',      19.08,  72.88, 5],
+  ['Singapore',    1.35, 103.82, 8],
+  ['Hong Kong',   22.32, 114.17, 7],
+  ['Tokyo',       35.68, 139.76, 8],
+  ['Seoul',       37.57, 126.98, 6],
+  ['Sydney',     -33.87, 151.21, 4],
+];
+let packetsTimer = null;
+function weightedPickIXP() {
+  const total = IXPs.reduce((s, x) => s + x[3], 0);
+  let r = Math.random() * total;
+  for (const x of IXPs) { r -= x[3]; if (r < 0) return x; }
+  return IXPs[0];
+}
+function spawnPacket() {
+  const a = weightedPickIXP();
+  let b = weightedPickIXP();
+  if (a === b) b = IXPs[(IXPs.indexOf(a) + 1) % IXPs.length];
+  const src = [a[2], a[1]], dst = [b[2], b[1]];
+  const d = path(greatCircle(src, dst, 48));
+  if (!d) return;
+  const trail = gPackets.append('path').attr('d', d).attr('fill','none')
+    .attr('stroke', '#5ec4ff').attr('stroke-width', 0.5).attr('opacity', 0.25);
+  let len;
+  try { len = trail.node().getTotalLength(); } catch { trail.remove(); return; }
+  if (!isFinite(len) || len === 0 || len > 8000) { trail.remove(); return; }
+  trail.transition().delay(800).duration(2200).attr('opacity', 0).remove();
+  const packet = gPackets.append('circle').attr('r', 2).attr('fill', '#82ffd8')
+    .style('filter', 'drop-shadow(0 0 5px #82ffd8)');
+  packet.transition().duration(2200).ease(d3.easeCubicInOut)
+    .attrTween('transform', () => t => {
+      const p = trail.node().getPointAtLength(t * len);
+      return `translate(${p.x},${p.y})`;
+    })
+    .on('end', () => packet.remove());
+}
+function startPackets() {
+  if (packetsTimer) return;
+  spawnPacket();
+  packetsTimer = setInterval(spawnPacket, 220);
+}
+function stopPackets() {
+  if (packetsTimer) { clearInterval(packetsTimer); packetsTimer = null; }
+  gPackets.selectAll('*').remove();
+}
+
+streamHandlers.packets = { start: startPackets, stop: stopPackets };
+
 // Auto-start: every stream on page load (user can toggle off)
 startWiki();
 startBsky();
@@ -1605,6 +2018,7 @@ startEq();
 startEonet();
 startAurora();
 startSats();
+startPackets();
 startSun(); // sub-solar point — auto-running, no toggle
 
 initYou();
