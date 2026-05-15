@@ -2284,16 +2284,16 @@ setInterval(() => {
 // LAYER REGISTRY — single source of truth, drives layers panel
 // ============================================================
 const LAYER_DEFS = [
-  { key:'wiki',    name:'Wikipedia 편집',        meta:'stream.wikimedia.org · 실시간 SSE',                                color:'#b682ff' },
-  { key:'bsky',    name:'Bluesky 포스트',        meta:'jetstream2.us-east.bsky.network · WebSocket firehose',             color:'#5ec4ff' },
-  { key:'eq',      name:'지진 (USGS)',           meta:'earthquake.usgs.gov · 1시간 이내 모든 지진',                       color:'#ff7a5c' },
-  { key:'eonet',   name:'자연재해 (NASA EONET)', meta:'eonet.gsfc.nasa.gov · 활성 산불·화산·태풍·홍수',                  color:'#ff9966' },
-  { key:'gdacs',   name:'재난 경보 (GDACS)',     meta:'www.gdacs.org · UN 글로벌 재난 경보 (홍수/지진/태풍/화산/가뭄)',   color:'#ff5050' },
-  { key:'cables',  name:'해저 케이블',           meta:'TeleGeography 기반 큐레이션 · 주요 대륙간 인터넷 백본',            color:'#5ec4ff' },
-  { key:'sats',    name:'위성 6개',              meta:'tle.ivanstanojevic.me TLE + satellite.js · ISS · Tiangong · Hubble · GOES-16 · Sentinel-2A · NOAA-19', color:'#ffe066' },
-  { key:'sun',     name:'태양 천정 (Subsolar)',  meta:'천체역학 계산 · 지구상 태양 직하점',                                color:'#fff2a8' },
-  { key:'packets', name:'패킷 흐름',             meta:'세계 25개 IXP 간 great-circle 애니메이션',                          color:'#82ffd8' },
-  { key:'hosts',   name:'호스트 핑 자동기록',    meta:'페이지가 호출하는 외부 호스트를 자동으로 지도에 기록',              color:'#82d8ff' },
+  { key:'wiki',    name:'Wikipedia 편집',        meta:'stream.wikimedia.org · 실시간 SSE',                                color:'#b682ff', default:true  },
+  { key:'bsky',    name:'Bluesky 포스트',        meta:'jetstream2.us-east.bsky.network · WebSocket firehose',             color:'#5ec4ff', default:true  },
+  { key:'eq',      name:'지진 (USGS)',           meta:'earthquake.usgs.gov · 1시간 이내 모든 지진',                       color:'#ff7a5c', default:false },
+  { key:'eonet',   name:'자연재해 (NASA EONET)', meta:'eonet.gsfc.nasa.gov · 활성 산불·화산·태풍·홍수',                  color:'#ff9966', default:false },
+  { key:'gdacs',   name:'재난 경보 (GDACS)',     meta:'www.gdacs.org · UN 글로벌 재난 경보 (홍수/지진/태풍/화산/가뭄)',   color:'#ff5050', default:false },
+  { key:'cables',  name:'해저 케이블',           meta:'TeleGeography 기반 큐레이션 · 주요 대륙간 인터넷 백본',            color:'#5ec4ff', default:true  },
+  { key:'sats',    name:'위성 6개',              meta:'tle.ivanstanojevic.me TLE + satellite.js · ISS · Tiangong · Hubble · GOES-16 · Sentinel-2A · NOAA-19', color:'#ffe066', default:true },
+  { key:'sun',     name:'태양 천정 (Subsolar)',  meta:'천체역학 계산 · 지구상 태양 직하점 + 밤낮 경계',                    color:'#fff2a8', default:true  },
+  { key:'packets', name:'패킷 흐름',             meta:'해저 케이블 위 트래픽 시뮬레이션',                                  color:'#82ffd8', default:true  },
+  { key:'hosts',   name:'호스트 핑 자동기록',    meta:'페이지가 호출하는 외부 호스트를 자동으로 지도에 기록',              color:'#82d8ff', default:true  },
 ];
 function updateLayerCount(key, n) {
   const el = document.getElementById('lp-count-' + key);
@@ -2305,7 +2305,7 @@ function buildLayersPanel() {
   list.innerHTML = LAYER_DEFS.map(L => `
     <div class="lp-item">
       <label class="lp-toggle">
-        <input type="checkbox" data-layer="${L.key}" checked>
+        <input type="checkbox" data-layer="${L.key}"${L.default ? ' checked' : ''}>
         <span class="lp-slider"></span>
       </label>
       <div class="lp-info">
@@ -2447,12 +2447,10 @@ document.querySelectorAll('.news-tab').forEach(t => {
   t.addEventListener('click', () => loadNewsFeed(t.dataset.feed));
 });
 
-// Auto-start: every layer on page load (user toggles via panel)
+// Auto-start: layers whose LAYER_DEFS.default === true
+// (Disaster layers default OFF — user can enable via Layers panel)
 startWiki();
 startBsky();
-startEq();
-startEonet();
-startGdacs();
 startCables();
 startSats();
 startPackets();
