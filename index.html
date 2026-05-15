@@ -131,37 +131,84 @@
   }
   .speed-btn:hover { background: rgba(255,224,102,0.2); }
 
-  .streams-bar { display: flex; gap: 6px; margin-top: 10px; pointer-events: auto; flex-wrap: wrap; }
-  .stream-toggle {
-    font-family: inherit; font-size: 10px; letter-spacing: 0.5px;
-    background: rgba(10,14,26,0.7); color: var(--dim);
-    border: 1px solid var(--land-stroke); padding: 5px 9px;
-    border-radius: 4px; cursor: pointer;
-    backdrop-filter: blur(8px);
-    display: inline-flex; align-items: center; gap: 6px;
+  @keyframes streampulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+  /* Layers button + panel */
+  .layers-btn {
+    margin-top: 10px;
+    background: rgba(10,14,26,0.7);
+    color: var(--text);
+    border: 1px solid var(--land-stroke);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit; font-size: 11px;
+    letter-spacing: 1px;
+    pointer-events: auto;
     transition: all .2s;
+    backdrop-filter: blur(8px);
   }
-  .stream-toggle:hover { color: var(--text); }
-  .stream-toggle.active { color: var(--text); border-color: rgba(255,255,255,0.25); }
-  .stream-toggle .dot {
-    width: 6px; height: 6px; border-radius: 50%; opacity: 0.4;
-    transition: opacity .3s, box-shadow .3s;
+  .layers-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .layers-panel {
+    position: fixed; left: -360px; top: 0; bottom: 0;
+    width: 340px;
+    background: rgba(10,14,26,0.96);
+    border-right: 1px solid var(--land-stroke);
+    padding: 18px 16px;
+    z-index: 60;
+    display: flex; flex-direction: column;
+    backdrop-filter: blur(12px);
+    transition: left 0.35s cubic-bezier(.4,.0,.2,1);
+    box-shadow: 10px 0 30px rgba(0,0,0,0.4);
   }
-  .stream-toggle.active .dot { opacity: 1; }
-  .stream-toggle .s-wiki { background: #b682ff; }
-  .stream-toggle.active .s-wiki { box-shadow: 0 0 6px #b682ff; animation: streampulse 1.4s infinite; }
-  .stream-toggle .s-bsky { background: #5ec4ff; }
-  .stream-toggle.active .s-bsky { box-shadow: 0 0 6px #5ec4ff; animation: streampulse 1.4s infinite; }
-  .stream-toggle .s-eq { background: #ff7a5c; }
-  .stream-toggle.active .s-eq { box-shadow: 0 0 6px #ff7a5c; animation: streampulse 1.4s infinite; }
-  .stream-toggle .s-eonet { background: #ff9966; }
-  .stream-toggle.active .s-eonet { box-shadow: 0 0 6px #ff9966; animation: streampulse 1.4s infinite; }
-  .stream-toggle .s-aurora { background: #88ffd4; }
-  .stream-toggle.active .s-aurora { box-shadow: 0 0 6px #88ffd4; animation: streampulse 1.4s infinite; }
-  .stream-toggle .s-iss { background: #ffe066; }
-  .stream-toggle.active .s-iss { box-shadow: 0 0 6px #ffe066; animation: streampulse 1.4s infinite; }
-  .stream-toggle .s-pkt { background: #82ffd8; }
-  .stream-toggle.active .s-pkt { box-shadow: 0 0 6px #82ffd8; animation: streampulse 1.4s infinite; }
+  .layers-panel.show { left: 0; }
+  .lp-close {
+    position: absolute; top: 8px; right: 12px;
+    background: none; border: none; color: var(--dim);
+    font-size: 24px; cursor: pointer; padding: 0;
+    width: 28px; height: 28px; line-height: 1;
+  }
+  .lp-close:hover { color: var(--text); }
+  .layers-panel h3 {
+    margin: 0 0 6px; font-size: 14px; color: var(--accent);
+    letter-spacing: 1px; padding-right: 28px;
+  }
+  .lp-hint { color: var(--dim); font-size: 10px; margin-bottom: 14px; line-height: 1.5; }
+  .lp-list { flex: 1; overflow-y: auto; }
+  .lp-item {
+    display: grid; grid-template-columns: 42px 1fr;
+    align-items: center; gap: 12px;
+    padding: 10px 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .lp-toggle { position: relative; width: 36px; height: 18px; flex-shrink: 0; }
+  .lp-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .lp-slider {
+    position: absolute; inset: 0; background: #233052;
+    border-radius: 18px; cursor: pointer; transition: 0.2s;
+  }
+  .lp-slider::before {
+    content: ''; position: absolute; left: 2px; top: 2px;
+    width: 14px; height: 14px; background: var(--dim);
+    border-radius: 50%; transition: 0.2s;
+  }
+  .lp-toggle input:checked + .lp-slider { background: rgba(124,243,195,0.3); }
+  .lp-toggle input:checked + .lp-slider::before {
+    transform: translateX(18px); background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+  .lp-info { min-width: 0; }
+  .lp-name {
+    font-size: 12px; color: var(--text);
+    display: flex; align-items: center; gap: 6px; margin-bottom: 3px;
+  }
+  .lp-color { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .lp-meta {
+    font-size: 9px; color: var(--dim); letter-spacing: 0.3px;
+    line-height: 1.4; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lp-meta a { color: var(--link); text-decoration: none; }
+  .lp-count { font-size: 9px; color: var(--accent); margin-left: 4px; }
 
   /* Region panel */
   .region-panel {
@@ -225,7 +272,6 @@
 
   .country-clickable { cursor: pointer; transition: fill 0.15s; }
   .country-clickable:hover { fill: #1f2a44; }
-  @keyframes streampulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -265,6 +311,12 @@
 <body>
 <svg id="map"></svg>
 <div class="tooltip" id="tooltip"></div>
+<aside class="layers-panel" id="layers-panel">
+  <button class="lp-close" id="lp-close" title="close">×</button>
+  <h3>Data Layers</h3>
+  <div class="lp-hint">모든 데이터 소스. 각 줄을 토글해서 켜고/끄세요.</div>
+  <div class="lp-list" id="lp-list"></div>
+</aside>
 <aside class="region-panel" id="region-panel">
   <button class="rp-close" id="rp-close" title="close">×</button>
   <h3 id="rp-name">—</h3>
@@ -280,15 +332,7 @@
   <h1>NET ATLAS</h1>
   <div class="sub">실시간으로 흐르는 인터넷</div>
   <div class="you" id="you">→ 위치 확인 중…</div>
-  <div class="streams-bar" id="streams-bar">
-    <button class="stream-toggle active" data-stream="wiki"><span class="dot s-wiki"></span>Wikipedia <span id="stream-wiki-count">0</span></button>
-    <button class="stream-toggle active" data-stream="bsky"><span class="dot s-bsky"></span>Bluesky <span id="stream-bsky-count">0</span></button>
-    <button class="stream-toggle active" data-stream="eq"><span class="dot s-eq"></span>Earthquakes <span id="stream-eq-count">0</span></button>
-    <button class="stream-toggle active" data-stream="eonet"><span class="dot s-eonet"></span>Disasters <span id="stream-eonet-count">0</span></button>
-    <button class="stream-toggle active" data-stream="aurora"><span class="dot s-aurora"></span>Aurora</button>
-    <button class="stream-toggle active" data-stream="sats"><span class="dot s-iss"></span>Satellites</button>
-    <button class="stream-toggle active" data-stream="packets"><span class="dot s-pkt"></span>Packets</button>
-  </div>
+  <button class="layers-btn" id="layers-btn">⚙ Layers</button>
   <div class="ticker" id="ticker">
     <span><b id="t-wiki">0</b>편집/분</span>
     <span><b id="t-bsky">0</b>포스트/분</span>
@@ -997,11 +1041,13 @@ async function initYou() {
 const skipHosts = new Set(['ipwho.is', 'ipapi.co', 'cloudflare-dns.com', 'cdn.jsdelivr.net']);
 window.fetch = function (input, init) {
   try {
-    const url = typeof input === 'string' ? input : (input && input.url) || '';
-    if (url) {
-      const u = new URL(url, location.href);
-      if (u.hostname && u.hostname !== location.hostname && !skipHosts.has(u.hostname)) {
-        plotHost(u.hostname);
+    if (typeof hostFetchOn === 'undefined' || hostFetchOn) {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (url) {
+        const u = new URL(url, location.href);
+        if (u.hostname && u.hostname !== location.hostname && !skipHosts.has(u.hostname)) {
+          plotHost(u.hostname);
+        }
       }
     }
   } catch {}
@@ -1148,7 +1194,7 @@ let satsTimer = null, satMarkers = new Map(), satTrails = new Map();
 
 const streamSkip = new Set([
   'stream.wikimedia.org', 'jetstream2.us-east.bsky.network', 'earthquake.usgs.gov',
-  'eonet.gsfc.nasa.gov', 'celestrak.org', 'services.swpc.noaa.gov',
+  'eonet.gsfc.nasa.gov', 'celestrak.org', 'tle.ivanstanojevic.me', 'services.swpc.noaa.gov',
 ]);
 streamSkip.forEach(h => skipHosts.add(h));
 
@@ -1197,7 +1243,7 @@ setInterval(() => {
   const projected = projection([lon, lat]);
   if (!projected) return;
   wikiCount++; tickRate('wiki');
-  $('stream-wiki-count').textContent = wikiCount;
+  if (wikiCount % 5 === 0) updateLayerCount('wiki', wikiCount);
   spawnPulse(projected[0], projected[1], '#b682ff', 12);
   if (wikiCount % 5 === 0) {
     const lang = (d.wiki.match(/^([a-z_-]+?)wiki/) || [,'??'])[1];
@@ -1237,7 +1283,7 @@ setInterval(() => {
   const projected = projection([lon, lat]);
   if (!projected) return;
   bskyCount++; tickRate('bsky');
-  $('stream-bsky-count').textContent = bskyCount;
+  if (bskyCount % 5 === 0) updateLayerCount('bsky', bskyCount);
   spawnPulse(projected[0], projected[1], '#5ec4ff', 10);
   if (bskyCount % 8 === 0) {
     logEntry('bsky', lang.toUpperCase() + ' · ' + (rec.text || '').slice(0, 50), 'bsky');
@@ -1295,7 +1341,7 @@ async function fetchEonet() {
       eonetDots.set(ev.id, true);
       eonetCount++;
     }
-    $('stream-eonet-count').textContent = eonetCount;
+    updateLayerCount('eonet', eonetCount);
   } catch {}
 }
 function startEonet() {
@@ -1318,6 +1364,18 @@ const SATELLITES = [
 ];
 const satRecs = new Map(); // norad -> satellite.satrec
 async function loadTLE(sat) {
+  // Primary: tle.ivanstanojevic.me (CORS-friendly JSON API)
+  try {
+    const r = await origFetch(`https://tle.ivanstanojevic.me/api/tle/${sat.id}`);
+    if (r.ok) {
+      const j = await r.json();
+      if (j.line1 && j.line2) {
+        satRecs.set(sat.id, satellite.twoline2satrec(j.line1, j.line2));
+        return;
+      }
+    }
+  } catch {}
+  // Fallback: CelesTrak (may rate-limit)
   try {
     const r = await origFetch(`https://celestrak.org/NORAD/elements/gp.php?CATNR=${sat.id}&FORMAT=tle`);
     if (!r.ok) return;
@@ -1327,8 +1385,7 @@ async function loadTLE(sat) {
     if (lines.length >= 3) { l1 = lines[1]; l2 = lines[2]; }
     else if (lines.length === 2) { l1 = lines[0]; l2 = lines[1]; }
     else return;
-    const satrec = satellite.twoline2satrec(l1, l2);
-    satRecs.set(sat.id, satrec);
+    satRecs.set(sat.id, satellite.twoline2satrec(l1, l2));
   } catch {}
 }
 function propagateSatAt(satrec, date) {
@@ -1535,7 +1592,7 @@ async function fetchEarthquakes() {
       eqDots.set(id, true);
       eqCount++;
     }
-    $('stream-eq-count').textContent = eqCount;
+    updateLayerCount('eq', eqCount);
   } catch {}
 }
 function drawEqDot([lon, lat, depth], mag, place, time) {
@@ -1584,18 +1641,16 @@ async function fetchAurora() {
 }
 function drawAurora(coords) {
   gAurora.selectAll('*').remove();
-  // coords: [[lon(0-360), lat(-90..90), intensity(0-100)], ...]
-  // Sample every other point and filter by intensity
-  for (let i = 0; i < coords.length; i += 2) {
+  // Aggressive filtering: only points with intensity ≥ 8, every 3rd sampled
+  // 7000 → ~1500 SVG nodes for much better perf
+  for (let i = 0; i < coords.length; i += 3) {
     const [lon0, lat, intensity] = coords[i];
-    if (intensity < 3) continue;
-    // Convert 0–360 to -180..180
+    if (intensity < 8) continue;
     const lon = lon0 > 180 ? lon0 - 360 : lon0;
     const projected = projection([lon, lat]);
     if (!projected) continue;
     const opacity = Math.min(intensity / 80, 0.55);
     const r = 3 + Math.min(intensity / 30, 2.5);
-    // green for north, red-pink for south is conventional, but use both green for unity
     gAurora.append('circle')
       .attr('cx', projected[0]).attr('cy', projected[1])
       .attr('r', r)
@@ -2011,15 +2066,177 @@ function stopPackets() {
 
 streamHandlers.packets = { start: startPackets, stop: stopPackets };
 
-// Auto-start: every stream on page load (user can toggle off)
+// ============================================================
+// GDACS — Global Disaster Alert system (UN-related, real-time)
+// Covers floods (FL), earthquakes (EQ), tropical cyclones (TC),
+// volcanoes (VO), wildfires (WF), droughts (DR), with severity tiers.
+// ============================================================
+skipHosts.add('www.gdacs.org');
+let gdacsTimer = null, gdacsCount = 0, gdacsSeen = new Set();
+const GDACS_TYPE = {
+  FL: { icon: '💧', label: 'Flood',           color: '#5cc8ff' },
+  EQ: { icon: '🌍', label: 'Earthquake',      color: '#ff9966' },
+  TC: { icon: '🌀', label: 'Tropical Cyclone',color: '#82d8ff' },
+  VO: { icon: '🌋', label: 'Volcano',         color: '#ff5050' },
+  WF: { icon: '🔥', label: 'Wildfire',        color: '#ff6b3a' },
+  DR: { icon: '☀️', label: 'Drought',         color: '#ffd86b' },
+};
+const GDACS_SEVERITY = { 'Green': 0.55, 'Orange': 0.8, 'Red': 1.0 };
+
+async function fetchGdacs() {
+  try {
+    const r = await origFetch('https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP');
+    if (!r.ok) return;
+    const j = await r.json();
+    for (const f of j.features || []) {
+      const id = f.properties?.eventid + '_' + f.properties?.episodeid;
+      if (gdacsSeen.has(id)) continue;
+      gdacsSeen.add(id);
+      const type = f.properties?.eventtype;
+      const meta = GDACS_TYPE[type];
+      if (!meta) continue;
+      const [lon, lat] = f.geometry?.coordinates || [];
+      if (lon == null) continue;
+      // Severity from icon URL (Green/Orange/Red)
+      const sevMatch = /\/(Green|Orange|Red)\//.exec(f.properties.icon || '');
+      const sevLevel = sevMatch ? sevMatch[1] : 'Green';
+      drawGdacsDot([lon, lat], meta, sevLevel, f.properties.name || f.properties.description, f.properties.fromdate);
+      gdacsCount++;
+    }
+    updateLayerCount('gdacs', gdacsCount);
+  } catch {}
+}
+function drawGdacsDot([lon, lat], meta, sev, title, date) {
+  const projected = projection([lon, lat]);
+  if (!projected) return;
+  const [x, y] = projected;
+  const alpha = GDACS_SEVERITY[sev] || 0.6;
+  spawnPulse(x, y, meta.color, 18);
+  const dot = gDots.append('circle')
+    .attr('cx', x).attr('cy', y).attr('r', 0)
+    .attr('fill', meta.color).attr('fill-opacity', alpha)
+    .style('filter', `drop-shadow(0 0 5px ${meta.color})`);
+  dot.transition().duration(500).attr('r', sev === 'Red' ? 5 : sev === 'Orange' ? 4 : 3);
+  attachTip(dot, () => `
+    <div class="tt-title">${meta.icon} ${t(meta.label) || meta.label}</div>
+    <div class="tt-body">${(title || '').replace(/[<>]/g,'').slice(0, 80)}</div>
+    <div class="tt-sub">
+      <div class="tt-row"><span>Severity</span><span style="color:${meta.color}">${sev}</span></div>
+      <div class="tt-row"><span>${t('Position')}</span><span>${Math.abs(lat).toFixed(2)}°${lat>=0?'N':'S'}, ${Math.abs(lon).toFixed(2)}°${lon>=0?'E':'W'}</span></div>
+      ${date ? `<div class="tt-row"><span></span><span>${timeAgo(new Date(date))}</span></div>` : ''}
+    </div>
+  `);
+}
+function startGdacs() {
+  if (gdacsTimer) return;
+  fetchGdacs();
+  gdacsTimer = setInterval(fetchGdacs, 10 * 60 * 1000);
+}
+function stopGdacs() {
+  if (gdacsTimer) { clearInterval(gdacsTimer); gdacsTimer = null; }
+}
+streamHandlers.gdacs = { start: startGdacs, stop: stopGdacs };
+
+// ============================================================
+// SUN (subsolar point) becomes a real toggleable layer
+// ============================================================
+function stopSun() {
+  if (sunInterval) { clearInterval(sunInterval); sunInterval = null; }
+  if (sunMarker) { sunMarker.remove(); sunMarker = null; }
+}
+streamHandlers.sun = { start: startSun, stop: stopSun };
+
+// ============================================================
+// HOST FETCH AUTO-PLOT toggle
+// The existing window.fetch override auto-plots hostnames of any
+// fetch the page makes. Wrap it so we can turn it off.
+// ============================================================
+let hostFetchOn = true;
+streamHandlers.hosts = {
+  start: () => { hostFetchOn = true; },
+  stop:  () => { hostFetchOn = false; },
+};
+
+// ============================================================
+// DOM PRUNE — cap transient layers so animations never balloon
+// ============================================================
+setInterval(() => {
+  // Cap pulse circles in gDots that are clearly transient (no class)
+  // Keep persistent dots/sat/eq/eonet (which have specific attributes)
+  // and trim very old ones if necessary. d3 transitions auto-clean,
+  // but if a tab is throttled, transitions may stall.
+  const transientPulse = gDots.selectAll('circle[fill="none"]').nodes();
+  if (transientPulse.length > 180) {
+    for (let i = 0; i < transientPulse.length - 120; i++) transientPulse[i].remove();
+  }
+  const pkts = gPackets.node().children;
+  if (pkts.length > 160) {
+    for (let i = 0; i < pkts.length - 100; i++) pkts[0].remove();
+  }
+}, 3000);
+
+// ============================================================
+// LAYER REGISTRY — single source of truth, drives layers panel
+// ============================================================
+const LAYER_DEFS = [
+  { key:'wiki',    name:'Wikipedia 편집',        meta:'stream.wikimedia.org · 실시간 SSE',                                color:'#b682ff' },
+  { key:'bsky',    name:'Bluesky 포스트',        meta:'jetstream2.us-east.bsky.network · WebSocket firehose',             color:'#5ec4ff' },
+  { key:'eq',      name:'지진 (USGS)',           meta:'earthquake.usgs.gov · 1시간 이내 모든 지진',                       color:'#ff7a5c' },
+  { key:'eonet',   name:'자연재해 (NASA EONET)', meta:'eonet.gsfc.nasa.gov · 활성 산불·화산·태풍·홍수',                  color:'#ff9966' },
+  { key:'gdacs',   name:'재난 경보 (GDACS)',     meta:'www.gdacs.org · UN 글로벌 재난 경보 (홍수/지진/태풍/화산/가뭄)',   color:'#ff5050' },
+  { key:'aurora',  name:'오로라 (NOAA OVATION)', meta:'services.swpc.noaa.gov · 5분 간격 갱신',                           color:'#88ffd4' },
+  { key:'sats',    name:'위성 6개',              meta:'celestrak.org TLE + satellite.js · ISS · Tiangong · Hubble · GOES-16 · Sentinel-2A · NOAA-19', color:'#ffe066' },
+  { key:'sun',     name:'태양 천정 (Subsolar)',  meta:'천체역학 계산 · 지구상 태양 직하점',                                color:'#fff2a8' },
+  { key:'packets', name:'패킷 흐름',             meta:'세계 25개 IXP 간 great-circle 애니메이션',                          color:'#82ffd8' },
+  { key:'hosts',   name:'호스트 핑 자동기록',    meta:'페이지가 호출하는 외부 호스트를 자동으로 지도에 기록',              color:'#82d8ff' },
+];
+function updateLayerCount(key, n) {
+  const el = document.getElementById('lp-count-' + key);
+  if (el) el.textContent = n ? `· ${n}` : '';
+}
+
+function buildLayersPanel() {
+  const list = document.getElementById('lp-list');
+  list.innerHTML = LAYER_DEFS.map(L => `
+    <div class="lp-item">
+      <label class="lp-toggle">
+        <input type="checkbox" data-layer="${L.key}" checked>
+        <span class="lp-slider"></span>
+      </label>
+      <div class="lp-info">
+        <div class="lp-name"><span class="lp-color" style="background:${L.color}"></span>${L.name}<span class="lp-count" id="lp-count-${L.key}"></span></div>
+        <div class="lp-meta">${L.meta}</div>
+      </div>
+    </div>
+  `).join('');
+  list.querySelectorAll('input[data-layer]').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const key = e.target.dataset.layer;
+      const handler = streamHandlers[key];
+      if (!handler) return;
+      if (e.target.checked) handler.start();
+      else handler.stop();
+    });
+  });
+}
+buildLayersPanel();
+document.getElementById('layers-btn').addEventListener('click', () => {
+  document.getElementById('layers-panel').classList.add('show');
+});
+document.getElementById('lp-close').addEventListener('click', () => {
+  document.getElementById('layers-panel').classList.remove('show');
+});
+
+// Auto-start: every layer on page load (user toggles via panel)
 startWiki();
 startBsky();
 startEq();
 startEonet();
+startGdacs();
 startAurora();
 startSats();
 startPackets();
-startSun(); // sub-solar point — auto-running, no toggle
+startSun();
 
 initYou();
 </script>
