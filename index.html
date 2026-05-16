@@ -379,6 +379,53 @@
     color: inherit;
     text-shadow: 0 0 4px rgba(0,0,0,0.8);
   }
+
+  /* Packet log terminal */
+  .packet-log {
+    position: fixed; right: 16px; top: 90px;
+    width: 360px; max-height: 240px;
+    background: rgba(5,8,16,0.78);
+    border: 1px solid rgba(124,243,195,0.25);
+    border-radius: 4px;
+    z-index: 40; padding: 6px 0 0;
+    backdrop-filter: blur(6px);
+    display: none; flex-direction: column;
+    box-shadow: 0 6px 30px rgba(0,0,0,0.5);
+  }
+  .packet-log.show { display: flex; }
+  .pl-head {
+    font-size: 10px; color: var(--accent);
+    letter-spacing: 1.5px; padding: 4px 10px 6px;
+    border-bottom: 1px solid rgba(124,243,195,0.15);
+  }
+  .pl-head #pl-rate { color: var(--dim); letter-spacing: 0.5px; font-weight: normal; }
+  .pl-body {
+    flex: 1; overflow-y: auto;
+    font-size: 10px; line-height: 1.55;
+    padding: 4px 10px 6px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+  }
+  .pkt {
+    display: grid; grid-template-columns: 70px 18px 50px 1fr 38px;
+    gap: 6px; align-items: baseline;
+    padding: 1px 0;
+    animation: pktin 0.2s ease;
+  }
+  @keyframes pktin {
+    from { opacity: 0; transform: translateX(-3px); }
+    to { opacity: 1; transform: none; }
+  }
+  .pkt-time { color: var(--dim); font-size: 9px; }
+  .pkt-dir.TX { color: #ffb86b; }
+  .pkt-dir.RX { color: #7cf3c3; }
+  .pkt-peer { color: var(--link); font-size: 9px; }
+  .pkt-payload {
+    color: var(--text); font-size: 9px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pkt-size { color: var(--dim); font-size: 9px; text-align: right; }
+  .pkt-payload .k { color: var(--dim); }
+  .pkt-payload .v { color: #82d8ff; }
   .country-clickable:hover { fill: #1f2a44; }
 
   /* ========== BOOT SEQUENCE ========== */
@@ -577,6 +624,10 @@
 </div>
 <div class="cursor" id="cursor"></div>
 <svg class="peer-web" id="peer-web"></svg>
+<div class="packet-log" id="packet-log-wrap">
+  <div class="pl-head">📡 P2P PACKETS · <span id="pl-rate">0 B/s</span></div>
+  <div class="pl-body" id="packet-log"></div>
+</div>
 <div class="hud-bracket tl"></div>
 <div class="hud-bracket tr"></div>
 <div class="hud-bracket bl"></div>
@@ -2675,30 +2726,60 @@ function initPeer() {
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
     return `hsl(${h % 360}, 80%, 65%)`;
   }
-  // peerId -> { x, y, color, el (cursor div), line (svg line) }
   const peers = new Map();
   let myX = innerWidth / 2, myY = innerHeight / 2;
   document.addEventListener('mousemove', e => { myX = e.clientX; myY = e.clientY; }, { passive: true });
 
+  // ---- Packet log (terminal) ----
+  const logWrap = $('packet-log-wrap');
+  const logBody = $('packet-log');
+  let bytesSec = 0;
+  setInterval(() => { $('pl-rate').textContent = bytesSec + ' B/s'; bytesSec = 0; }, 1000);
+
+  function logPacket(dir, peerId, action, payloadObj, bytes) {
+    const t = new Date();
+    const ts = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}.${String(t.getMilliseconds()).padStart(3,'0')}`;
+    const peerShort = (peerId || 'all').slice(0, 6);
+    // Pretty payload preview
+    let preview = '';
+    if (payloadObj && typeof payloadObj === 'object') {
+      preview = Object.entries(payloadObj).slice(0,4)
+        .map(([k,v]) => `<span class="k">${k}</span>:<span class="v">${typeof v==='number'?v.toFixed(2):JSON.stringify(v).slice(0,12)}</span>`).join(' ');
+    }
+    const div = document.createElement('div');
+    div.className = 'pkt';
+    div.innerHTML = `
+      <span class="pkt-time">${ts}</span>
+      <span class="pkt-dir ${dir}">${dir === 'TX' ? '→' : '←'}</span>
+      <span class="pkt-peer">${peerShort}</span>
+      <span class="pkt-payload">${action} ${preview}</span>
+      <span class="pkt-size">${bytes}b</span>`;
+    logBody.prepend(div);
+    while (logBody.children.length > 40) logBody.lastChild.remove();
+    bytesSec += bytes;
+  }
+  function showLogIfPeers() {
+    logWrap.classList.toggle('show', peers.size > 0);
+  }
+
   function updateCount() {
     $('p2p-count').textContent = peers.size;
     $('p2p-status').classList.toggle('offline', peers.size === 0);
+    showLogIfPeers();
   }
   function ensurePeer(peerId) {
     let p = peers.get(peerId);
     if (p) return p;
     const color = colorFor(peerId);
-    // cursor div
     const el = document.createElement('div');
     el.className = 'peer-cursor';
     el.style.color = color; el.style.borderColor = color;
     el.innerHTML = `<div class="peer-label">${peerId.slice(0,6)}</div>`;
     document.body.appendChild(el);
-    // line in svg
     const line = gLines.append('line')
       .attr('stroke', color)
-      .attr('stroke-width', 0.4)
-      .attr('opacity', 0.18);
+      .attr('stroke-width', 1)
+      .attr('opacity', 0.35);
     p = { x: innerWidth/2, y: innerHeight/2, color, el, line };
     peers.set(peerId, p);
     updateCount();
@@ -2713,54 +2794,97 @@ function initPeer() {
     updateCount();
   }
 
-  // Continuously redraw mesh lines (my cursor ↔ every peer)
+  // Mesh lines re-position (60ms)
   setInterval(() => {
     peers.forEach(p => {
       p.line.attr('x1', myX).attr('y1', myY).attr('x2', p.x).attr('y2', p.y);
     });
-  }, 50);
+  }, 60);
 
-  // Visualize a packet traveling along the mesh edge
-  function flowParticle(fromX, fromY, toX, toY, color) {
+  // Particle: bigger, slower, glow + trail
+  function flowParticle(fromX, fromY, toX, toY, color, dir = 'in') {
     const dot = gFlow.append('circle')
-      .attr('r', 2).attr('fill', color)
+      .attr('r', 4).attr('fill', color)
       .attr('cx', fromX).attr('cy', fromY)
-      .style('filter', `drop-shadow(0 0 6px ${color})`);
-    dot.transition().duration(550).ease(d3.easeCubicInOut)
+      .attr('fill-opacity', 0.95)
+      .style('filter', `drop-shadow(0 0 8px ${color}) drop-shadow(0 0 14px ${color})`);
+    const trail = gFlow.append('line')
+      .attr('x1', fromX).attr('y1', fromY)
+      .attr('x2', fromX).attr('y2', fromY)
+      .attr('stroke', color).attr('stroke-width', 1.5)
+      .attr('opacity', 0.5)
+      .style('filter', `drop-shadow(0 0 4px ${color})`);
+    dot.transition().duration(950).ease(d3.easeCubicInOut)
       .attr('cx', toX).attr('cy', toY)
-      .remove();
+      .tween('trail', () => t => {
+        const cx = +dot.attr('cx'), cy = +dot.attr('cy');
+        trail.attr('x2', cx).attr('y2', cy);
+      });
+    dot.transition().delay(950).duration(300).attr('fill-opacity', 0).remove();
+    trail.transition().delay(700).duration(700).attr('opacity', 0).remove();
   }
   function flashLine(p) {
     p.line
-      .attr('opacity', 0.55).attr('stroke-width', 0.9)
-      .transition().duration(700)
-      .attr('opacity', 0.18).attr('stroke-width', 0.4);
+      .attr('opacity', 0.85).attr('stroke-width', 2)
+      .transition().duration(900)
+      .attr('opacity', 0.35).attr('stroke-width', 1);
   }
 
-  // Cursor sync action — broadcast my cursor pos, receive others
-  const [sendCursor, getCursor] = room.makeAction('cur');
+  // --- Cursor action (the actual data exchanged) ---
+  const [_sendCursor, getCursor] = room.makeAction('cur');
+  function sendCursor(data) {
+    try { _sendCursor(data); } catch { return; }
+    const json = JSON.stringify(data);
+    const bytes = new TextEncoder().encode(json).length;
+    // visualize OUTGOING flow (my cursor → each peer)
+    peers.forEach(p => flowParticle(myX, myY, p.x, p.y, '#7cf3c3'));
+    if (peers.size > 0) logPacket('TX', `all/${peers.size}`, 'cur', data, bytes);
+  }
   let lastSent = 0;
   document.addEventListener('mousemove', e => {
     const now = Date.now();
-    // dynamic throttle: more peers → slower send to keep mesh sane
     const minMs = peers.size > 12 ? 200 : peers.size > 6 ? 130 : 90;
     if (now - lastSent < minMs) return;
     lastSent = now;
-    try { sendCursor({ x: e.clientX / innerWidth, y: e.clientY / innerHeight }); } catch {}
+    sendCursor({ x: +(e.clientX / innerWidth).toFixed(3), y: +(e.clientY / innerHeight).toFixed(3) });
   }, { passive: true });
 
   getCursor((data, peerId) => {
     const p = ensurePeer(peerId);
-    p.x = data.x * innerWidth;
-    p.y = data.y * innerHeight;
+    p.x = (data.x || 0) * innerWidth;
+    p.y = (data.y || 0) * innerHeight;
     p.el.style.transform = `translate(${p.x}px, ${p.y}px)`;
-    // EVERY received packet = real data flow. Visualize.
     flashLine(p);
     flowParticle(p.x, p.y, myX, myY, p.color);
+    const bytes = new TextEncoder().encode(JSON.stringify(data)).length;
+    logPacket('RX', peerId, 'cur', data, bytes);
   });
 
-  room.onPeerJoin(id => { ensurePeer(id); });
-  room.onPeerLeave(id => removePeer(id));
+  // --- Heartbeat (keeps data flowing even when nobody moves) ---
+  const [_sendPing, getPing] = room.makeAction('ping');
+  setInterval(() => {
+    if (peers.size === 0) return;
+    const data = { t: Date.now() };
+    try { _sendPing(data); } catch { return; }
+    peers.forEach(p => flowParticle(myX, myY, p.x, p.y, '#82d8ff'));
+    logPacket('TX', `all/${peers.size}`, 'ping', data, 18);
+  }, 2000);
+  getPing((data, peerId) => {
+    const p = ensurePeer(peerId);
+    flowParticle(p.x, p.y, myX, myY, '#82d8ff');
+    flashLine(p);
+    const rtt = Date.now() - (data.t || Date.now());
+    logPacket('RX', peerId, `ping`, { rtt: rtt + 'ms' }, 18);
+  });
+
+  room.onPeerJoin(id => {
+    ensurePeer(id);
+    logPacket('RX', id, 'JOIN', { peers: peers.size }, 0);
+  });
+  room.onPeerLeave(id => {
+    logPacket('RX', id, 'LEAVE', {}, 0);
+    removePeer(id);
+  });
 }
 if (window.__trystero) initPeer();
 else window.addEventListener('trystero-ready', initPeer);
