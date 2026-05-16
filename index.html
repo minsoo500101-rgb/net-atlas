@@ -426,6 +426,56 @@
   .pkt-size { color: var(--dim); font-size: 9px; text-align: right; }
   .pkt-payload .k { color: var(--dim); }
   .pkt-payload .v { color: #82d8ff; }
+
+  /* Chat bar — bottom center */
+  .chat-bar {
+    position: fixed; bottom: 60px; left: 50%;
+    transform: translateX(-50%);
+    width: min(540px, 80vw);
+    z-index: 50;
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(10,14,26,0.78);
+    border: 1px solid rgba(124,243,195,0.25);
+    border-radius: 24px;
+    padding: 6px 14px 6px 16px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+  .chat-prompt { color: var(--accent); font-size: 14px; }
+  #chat-input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-family: inherit; font-size: 12px;
+    padding: 6px 0;
+  }
+  #chat-input::placeholder { color: var(--dim); letter-spacing: 0.5px; }
+  .chat-bubble {
+    position: fixed;
+    font-size: 14px; font-weight: 500;
+    letter-spacing: 0.3px; line-height: 1.3;
+    pointer-events: none;
+    z-index: 9985;
+    transform: translate(-50%, -100%);
+    padding: 6px 12px;
+    border-radius: 14px;
+    background: rgba(5,8,16,0.65);
+    backdrop-filter: blur(4px);
+    border: 1px solid;
+    text-shadow: 0 0 8px currentColor;
+    animation: chat-rise 5s ease-out forwards;
+    white-space: nowrap; max-width: 60vw;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  @keyframes chat-rise {
+    0%   { opacity: 0; transform: translate(-50%, -90%); }
+    8%   { opacity: 1; transform: translate(-50%, -110%); }
+    85%  { opacity: 1; transform: translate(-50%, -240%); }
+    100% { opacity: 0; transform: translate(-50%, -300%); }
+  }
+  .peer-map-marker text {
+    paint-order: stroke;
+    stroke: rgba(0,0,0,0.65); stroke-width: 2.5;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+  }
   .country-clickable:hover { fill: #1f2a44; }
 
   /* ========== BOOT SEQUENCE ========== */
@@ -628,6 +678,10 @@
   <div class="pl-head">📡 P2P PACKETS · <span id="pl-rate">0 B/s</span></div>
   <div class="pl-body" id="packet-log"></div>
 </div>
+<form class="chat-bar" id="chat-bar" autocomplete="off">
+  <span class="chat-prompt">›</span>
+  <input id="chat-input" placeholder="say something to the world… (Enter to broadcast)" maxlength="160">
+</form>
 <div class="hud-bracket tl"></div>
 <div class="hud-bracket tr"></div>
 <div class="hud-bracket bl"></div>
@@ -2702,6 +2756,7 @@ function initPeer() {
     <span class="p2p-status offline" id="p2p-status">P2P · <span id="p2p-count">0</span></span>
     <span class="p2p-room">room <b id="p2p-room">${roomId}</b></span>
     <button class="p2p-copy" id="p2p-copy">📋 share</button>
+    <button class="p2p-copy" id="p2p-geo">📍 share my location</button>
   `;
   header.appendChild(badge);
   $('p2p-copy').addEventListener('click', () => {
@@ -2877,13 +2932,124 @@ function initPeer() {
     logPacket('RX', peerId, `ping`, { rtt: rtt + 'ms' }, 18);
   });
 
+  // ============================================================
+  // CHAT — type at the world; your words float up at your cursor
+  // on every peer's screen.
+  // ============================================================
+  const [_sendChat, getChat] = room.makeAction('msg');
+  function spawnBubble(text, x, y, color) {
+    const el = document.createElement('div');
+    el.className = 'chat-bubble';
+    el.style.color = color;
+    el.style.borderColor = color;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.textContent = text;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 5200);
+  }
+  function broadcastChat(text) {
+    text = (text || '').trim();
+    if (!text) return;
+    const data = { t: text.slice(0, 160) };
+    try { _sendChat(data); } catch { return; }
+    spawnBubble(data.t, myX, myY, '#7cf3c3');
+    const bytes = new TextEncoder().encode(JSON.stringify(data)).length;
+    logPacket('TX', `all/${peers.size}`, 'msg', { t: data.t.slice(0,18) + (data.t.length>18?'…':'') }, bytes);
+  }
+  getChat((data, peerId) => {
+    const p = ensurePeer(peerId);
+    spawnBubble(data.t || '', p.x, p.y, p.color);
+    const bytes = new TextEncoder().encode(JSON.stringify(data || {})).length;
+    logPacket('RX', peerId, 'msg', { t: (data.t||'').slice(0,18) + ((data.t||'').length>18?'…':'') }, bytes);
+  });
+  const chatForm = $('chat-bar');
+  const chatInput = $('chat-input');
+  chatForm.addEventListener('submit', e => {
+    e.preventDefault();
+    broadcastChat(chatInput.value);
+    chatInput.value = '';
+  });
+
+  // ============================================================
+  // GEOLOCATION — peer shows up at real lat/lon on the map
+  // Uses browser-native API (no third-party geo-IP).
+  // ============================================================
+  const [_sendPos, getPos] = room.makeAction('pos');
+  let myGeo = null;
+  let myGeoMarker = null;
+  const peerMapDots = new Map(); // peerId -> d3 selection
+  function placeOnMap(peerId, lat, lon, color, isMe) {
+    const proj = projection([lon, lat]);
+    if (!proj) return;
+    let g = peerMapDots.get(peerId);
+    if (!g) {
+      g = gDots.append('g').attr('class', 'peer-map-marker');
+      g.append('circle').attr('class','ring').attr('r', 12).attr('fill','none')
+        .attr('stroke', color).attr('stroke-width', 1).attr('opacity', 0.45);
+      g.append('circle').attr('class','core').attr('r', isMe ? 5 : 4)
+        .attr('fill', color)
+        .style('filter', `drop-shadow(0 0 8px ${color})`);
+      g.append('text').attr('x', 9).attr('y', -7).attr('font-size', 9)
+        .attr('fill', color)
+        .text(isMe ? 'YOU' : peerId.slice(0,6));
+      peerMapDots.set(peerId, g);
+    }
+    g.attr('transform', `translate(${proj[0]},${proj[1]})`);
+    // pulse on update
+    const pulse = g.append('circle').attr('r', 4).attr('fill','none')
+      .attr('stroke', color).attr('stroke-width', 1.5).attr('opacity', 0.8);
+    pulse.transition().duration(1200).ease(d3.easeCubicOut)
+      .attr('r', 22).attr('opacity', 0).remove();
+  }
+  function broadcastMyPos() {
+    if (!myGeo) return;
+    const data = { lat: +myGeo.lat.toFixed(3), lon: +myGeo.lon.toFixed(3) };
+    try { _sendPos(data); } catch { return; }
+    const bytes = new TextEncoder().encode(JSON.stringify(data)).length;
+    logPacket('TX', `all/${peers.size}`, 'pos', data, bytes);
+  }
+  getPos((data, peerId) => {
+    const p = ensurePeer(peerId);
+    if (data.lat == null) return;
+    placeOnMap(peerId, data.lat, data.lon, p.color, false);
+    const bytes = new TextEncoder().encode(JSON.stringify(data)).length;
+    logPacket('RX', peerId, 'pos', data, bytes);
+  });
+  $('p2p-geo').addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      $('p2p-geo').textContent = '✗ unavailable'; return;
+    }
+    $('p2p-geo').textContent = '...';
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        myGeo = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        placeOnMap('__me__', myGeo.lat, myGeo.lon, '#7cf3c3', true);
+        broadcastMyPos();
+        $('p2p-geo').textContent = '📍 sharing';
+        $('p2p-geo').disabled = true;
+        // Re-broadcast every 30s so newly joined peers learn our location
+        setInterval(broadcastMyPos, 30000);
+      },
+      err => {
+        $('p2p-geo').textContent = '✗ denied';
+        setTimeout(() => $('p2p-geo').textContent = '📍 share my location', 2000);
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
+    );
+  });
+
   room.onPeerJoin(id => {
     ensurePeer(id);
     logPacket('RX', id, 'JOIN', { peers: peers.size }, 0);
+    // Re-broadcast our position so they see us
+    if (myGeo) setTimeout(broadcastMyPos, 800);
   });
   room.onPeerLeave(id => {
     logPacket('RX', id, 'LEAVE', {}, 0);
     removePeer(id);
+    const m = peerMapDots.get(id);
+    if (m) { m.remove(); peerMapDots.delete(id); }
   });
 }
 if (window.__trystero) initPeer();
