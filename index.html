@@ -324,7 +324,12 @@
 
   .country-clickable { transition: fill 0.15s; }
 
-  /* ========== P2P PRESENCE ========== */
+  /* ========== P2P PRESENCE + DATA WEB ========== */
+  .peer-web {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    pointer-events: none; z-index: 9985;
+  }
   .p2p-badge {
     margin-top: 12px;
     display: inline-flex; gap: 10px; align-items: center;
@@ -571,6 +576,7 @@
   </div>
 </div>
 <div class="cursor" id="cursor"></div>
+<svg class="peer-web" id="peer-web"></svg>
 <div class="hud-bracket tl"></div>
 <div class="hud-bracket tr"></div>
 <div class="hud-bracket bl"></div>
@@ -2618,19 +2624,23 @@ startPackets();
 startSun();
 
 // ============================================================
-// REAL P2P — your browser ↔ another individual's browser
-// via WebRTC + public Nostr relay signaling (no server)
+// REAL P2P — global room "earth" where everyone meets
+// WebRTC mesh via public Nostr relay signaling. No server.
+// Visualizes actual data flowing between peers as moving particles.
 // ============================================================
 function initPeer() {
   const t = window.__trystero;
   if (!t) return;
   const { joinRoom, selfId } = t;
+
+  // Default: global room "earth". Override with #room=xxx for private.
   const m = location.hash.match(/room=([a-z0-9-]+)/i);
-  const roomId = m ? m[1] : Math.random().toString(36).slice(2, 8);
-  if (!m) history.replaceState(null, '', `#room=${roomId}`);
+  const roomId = m ? m[1] : 'earth';
+  const isGlobal = roomId === 'earth';
+
   let room;
   try {
-    room = joinRoom({ appId: 'netatlas-presence' }, roomId);
+    room = joinRoom({ appId: 'netatlas-v1' }, roomId);
   } catch (e) { console.warn('p2p room failed', e); return; }
 
   // Status badge in header
@@ -2644,56 +2654,113 @@ function initPeer() {
   `;
   header.appendChild(badge);
   $('p2p-copy').addEventListener('click', () => {
-    navigator.clipboard.writeText(location.href).then(() => {
+    const url = isGlobal ? location.origin + location.pathname : location.href;
+    navigator.clipboard.writeText(url).then(() => {
       $('p2p-copy').textContent = '✓ copied';
       setTimeout(() => $('p2p-copy').textContent = '📋 share', 1500);
     });
   });
 
-  const peerEls = new Map();
+  // Data web overlay
+  const webSvg = d3.select('#peer-web');
+  webSvg.attr('width', innerWidth).attr('height', innerHeight);
+  window.addEventListener('resize', () => {
+    webSvg.attr('width', innerWidth).attr('height', innerHeight);
+  });
+  const gLines = webSvg.append('g');
+  const gFlow  = webSvg.append('g');
+
   function colorFor(id) {
     let h = 0;
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
     return `hsl(${h % 360}, 80%, 65%)`;
   }
+  // peerId -> { x, y, color, el (cursor div), line (svg line) }
+  const peers = new Map();
+  let myX = innerWidth / 2, myY = innerHeight / 2;
+  document.addEventListener('mousemove', e => { myX = e.clientX; myY = e.clientY; }, { passive: true });
+
   function updateCount() {
-    $('p2p-count').textContent = peerEls.size;
-    $('p2p-status').classList.toggle('offline', peerEls.size === 0);
+    $('p2p-count').textContent = peers.size;
+    $('p2p-status').classList.toggle('offline', peers.size === 0);
+  }
+  function ensurePeer(peerId) {
+    let p = peers.get(peerId);
+    if (p) return p;
+    const color = colorFor(peerId);
+    // cursor div
+    const el = document.createElement('div');
+    el.className = 'peer-cursor';
+    el.style.color = color; el.style.borderColor = color;
+    el.innerHTML = `<div class="peer-label">${peerId.slice(0,6)}</div>`;
+    document.body.appendChild(el);
+    // line in svg
+    const line = gLines.append('line')
+      .attr('stroke', color)
+      .attr('stroke-width', 0.4)
+      .attr('opacity', 0.18);
+    p = { x: innerWidth/2, y: innerHeight/2, color, el, line };
+    peers.set(peerId, p);
+    updateCount();
+    return p;
+  }
+  function removePeer(peerId) {
+    const p = peers.get(peerId);
+    if (!p) return;
+    p.el.remove();
+    p.line.remove();
+    peers.delete(peerId);
+    updateCount();
   }
 
-  // Cursor sync — broadcast our cursor, render incoming
+  // Continuously redraw mesh lines (my cursor ↔ every peer)
+  setInterval(() => {
+    peers.forEach(p => {
+      p.line.attr('x1', myX).attr('y1', myY).attr('x2', p.x).attr('y2', p.y);
+    });
+  }, 50);
+
+  // Visualize a packet traveling along the mesh edge
+  function flowParticle(fromX, fromY, toX, toY, color) {
+    const dot = gFlow.append('circle')
+      .attr('r', 2).attr('fill', color)
+      .attr('cx', fromX).attr('cy', fromY)
+      .style('filter', `drop-shadow(0 0 6px ${color})`);
+    dot.transition().duration(550).ease(d3.easeCubicInOut)
+      .attr('cx', toX).attr('cy', toY)
+      .remove();
+  }
+  function flashLine(p) {
+    p.line
+      .attr('opacity', 0.55).attr('stroke-width', 0.9)
+      .transition().duration(700)
+      .attr('opacity', 0.18).attr('stroke-width', 0.4);
+  }
+
+  // Cursor sync action — broadcast my cursor pos, receive others
   const [sendCursor, getCursor] = room.makeAction('cur');
   let lastSent = 0;
-  document.addEventListener('mousemove', (e) => {
+  document.addEventListener('mousemove', e => {
     const now = Date.now();
-    if (now - lastSent < 80) return;
+    // dynamic throttle: more peers → slower send to keep mesh sane
+    const minMs = peers.size > 12 ? 200 : peers.size > 6 ? 130 : 90;
+    if (now - lastSent < minMs) return;
     lastSent = now;
     try { sendCursor({ x: e.clientX / innerWidth, y: e.clientY / innerHeight }); } catch {}
   }, { passive: true });
 
   getCursor((data, peerId) => {
-    let el = peerEls.get(peerId);
-    if (!el) {
-      el = document.createElement('div');
-      el.className = 'peer-cursor';
-      const c = colorFor(peerId);
-      el.style.color = c;
-      el.style.borderColor = c;
-      el.innerHTML = `<div class="peer-label">${peerId.slice(0,6)}</div>`;
-      document.body.appendChild(el);
-      peerEls.set(peerId, el);
-      updateCount();
-    }
-    el.style.transform = `translate(${data.x * innerWidth}px, ${data.y * innerHeight}px)`;
+    const p = ensurePeer(peerId);
+    p.x = data.x * innerWidth;
+    p.y = data.y * innerHeight;
+    p.el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+    // EVERY received packet = real data flow. Visualize.
+    flashLine(p);
+    flowParticle(p.x, p.y, myX, myY, p.color);
   });
 
-  room.onPeerJoin(id => { updateCount(); });
-  room.onPeerLeave(id => {
-    const el = peerEls.get(id);
-    if (el) el.remove();
-    peerEls.delete(id);
-    updateCount();
-  });
+  room.onPeerJoin(id => { ensurePeer(id); });
+  room.onPeerLeave(id => removePeer(id));
 }
 if (window.__trystero) initPeer();
 else window.addEventListener('trystero-ready', initPeer);
